@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Faixa.Nucleo/Faixa.Nucleo.csproj" />
+    <Project Path="src/Faixa/Faixa.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Faixa.Testes/Faixa.Testes.csproj" />
+  </Folder>
+</Solution>

@@ -10,11 +10,12 @@
     <RootNamespace>Faixa</RootNamespace>
     <ApplicationIcon>Assets\faixa.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <SatelliteResourceLanguages>pt-BR</SatelliteResourceLanguages>
-    <Version>1.0.0</Version>
-    <Product>Faixa</Product>
-    <Description>Baixa músicas do YouTube em MP3 320 kbps</Description>
+    <Description>Baixa músicas do YouTube em MP3 ou no formato original</Description>
   </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Faixa.Nucleo\Faixa.Nucleo.csproj" />
+  </ItemGroup>
 
   <ItemGroup>
     <Resource Include="Assets\faixa.ico" />

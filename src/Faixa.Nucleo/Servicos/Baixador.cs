@@ -222,7 +222,7 @@ public static class Baixador
         bool Tem(params string[] trechos) =>
             trechos.Any(t => erro.Contains(t, StringComparison.OrdinalIgnoreCase));
 
-        if (Tem("not a bot", "confirm you", "HTTP Error 429", "too many requests"))
+        if (Tem("not a bot", "HTTP Error 429", "too many requests"))
             return new(TipoErro.Bloqueio, "O YouTube pediu verificação anti-robô. Tente daqui a alguns minutos.", detalhe);
         if (Tem("confirm your age", "age-restricted", "inappropriate for some users"))
             return new(TipoErro.Restrito, "Vídeo com restrição de idade. O YouTube só libera com login.", detalhe);

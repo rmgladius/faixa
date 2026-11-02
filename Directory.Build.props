@@ -1,0 +1,9 @@
+<Project>
+  <!-- Versão única do programa: o verificador de atualização compara com a da última release. -->
+  <PropertyGroup>
+    <Version>1.1.0</Version>
+    <Product>Faixa</Product>
+    <Authors>Rodrigo Dias</Authors>
+    <SatelliteResourceLanguages>pt-BR</SatelliteResourceLanguages>
+  </PropertyGroup>
+</Project>
