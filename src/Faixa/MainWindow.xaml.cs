@@ -1833,6 +1833,10 @@ public partial class MainWindow : Window
             AtualizarSelecao();
             AtualizarStatus();
             await Salvar("17-playlist-concluida");
+
+            BotaoAtualizarTexto.Text = "Versão 1.2";
+            BotaoAtualizar.Visibility = Visibility.Visible;
+            await Salvar("18-versao-nova");
         }
         catch (Exception erro)
         {
