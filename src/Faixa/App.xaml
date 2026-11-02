@@ -113,6 +113,33 @@
             </Setter>
         </Style>
 
+        <!-- Etiqueta clicável de versão nova, no cabeçalho -->
+        <Style x:Key="BotaoNovidade" TargetType="Button">
+            <Setter Property="Foreground" Value="{StaticResource Destaque}" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Fundo" CornerRadius="13" Padding="11,5" BorderThickness="1"
+                                BorderBrush="{StaticResource Destaque}" Background="Transparent">
+                            <ContentPresenter />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Fundo" Property="Background" Value="#22FF6A3D" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.5" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <!-- Link de texto (Abrir pasta) -->
         <Style x:Key="BotaoLink" TargetType="Button">
             <Setter Property="Foreground" Value="{StaticResource Destaque}" />

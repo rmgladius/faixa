@@ -84,6 +84,9 @@ public partial class MainWindow : Window
     private Aviso? _avisoResultado;
     private Action? _acaoStatus;
 
+    private VersaoNova? _versaoNova;
+    private bool _atualizando;
+
     private ModoBarra _modoBarra = ModoBarra.Oculta;
     private double _fracaoBarra;
 
@@ -102,6 +105,7 @@ public partial class MainWindow : Window
         };
 
         ListaFaixas.ItemsSource = _faixas;
+        Marca.ToolTip = $"Faixa {Atualizador.VersaoAtualTexto}";
         MontarOpcoes();
 
         Loaded += OnLoaded;
@@ -136,6 +140,7 @@ public partial class MainWindow : Window
         CampoLink.Focus();
         Baixador.LimparTemporarios();
         EntregarSobras();
+        _ = ProcurarVersaoNovaAsync();
         await PrepararComponentesAsync();
     }
 
@@ -1172,6 +1177,77 @@ public partial class MainWindow : Window
         bool opcaoSemConversao() => _opcaoEmAndamento?.SemConversao == true;
     }
 
+    // ───────────────────────── Atualização do Faixa ─────────────────────────
+
+    private async Task ProcurarVersaoNovaAsync()
+    {
+        try
+        {
+            _versaoNova = await Atualizador.ProcurarAsync(_ctsJanela.Token);
+        }
+        catch
+        {
+            return; // sem internet, GitHub fora do ar, repositório inexistente: tenta na próxima abertura
+        }
+        if (_versaoNova is null)
+            return;
+        BotaoAtualizarTexto.Text = $"Versão {_versaoNova.Texto}";
+        BotaoAtualizar.ToolTip = $"Há uma versão nova do Faixa ({_versaoNova.Texto}). Você está na {Atualizador.VersaoAtualTexto}.";
+        BotaoAtualizar.Visibility = Visibility.Visible;
+    }
+
+    private async void Atualizar_Click(object sender, RoutedEventArgs e)
+    {
+        if (_versaoNova is not { } nova || _baixando || _atualizando)
+            return;
+
+        var notas = string.IsNullOrWhiteSpace(nova.Notas) ? "" : $"\n\nNovidades:\n{nova.Notas}";
+        var resposta = MessageBox.Show(this,
+            $"Atualizar o Faixa da versão {Atualizador.VersaoAtualTexto} para a {nova.Texto}?" +
+            $"\n\nO programa baixa a versão nova, confere o arquivo e reabre sozinho.{notas}",
+            "Atualizar o Faixa", MessageBoxButton.YesNo, MessageBoxImage.Question);
+        if (resposta != MessageBoxResult.Yes)
+            return;
+
+        _atualizando = true;
+        AtualizarBotao();
+        string? baixado = null;
+        try
+        {
+            MostrarStatus($"Baixando a versão {nova.Texto}…");
+            baixado = await Atualizador.BaixarAsync(nova, new Progress<double>(f =>
+            {
+                MostrarStatus($"Baixando a versão {nova.Texto}…", percentual: $"{(int)(f * 100)}%");
+                BarraDeterminada(f);
+            }), _ctsJanela.Token);
+
+            var exe = Atualizador.Instalar(baixado);
+            Process.Start(new ProcessStartInfo(exe) { UseShellExecute = true });
+            Application.Current.Shutdown();
+        }
+        catch (Exception erro) when (erro is UnauthorizedAccessException or IOException && baixado is not null && File.Exists(baixado))
+        {
+            // A pasta do Faixa não aceita a troca (ex.: protegida pelo Windows): entrega o .exe novo em Downloads.
+            RegistrarErro("Atualização: troca do .exe recusada", erro.ToString());
+            var destino = Path.Combine(Config.PastaDownloads, $"Faixa-{nova.Texto}.exe");
+            File.Move(baixado, destino, overwrite: true);
+            _avisoResultado = new Aviso($"Não consegui trocar o programa na pasta dele. A versão {nova.Texto} ficou em Downloads: feche o Faixa e use o arquivo novo.",
+                Tom.Erro, "Abrir pasta", () => MostrarNoExplorer(destino));
+        }
+        catch (Exception erro)
+        {
+            var log = RegistrarErro("Atualização do Faixa", erro.ToString());
+            _avisoResultado = new Aviso(erro is InvalidDataException ? erro.Message : "Não consegui baixar a versão nova. Tente mais tarde.",
+                Tom.Erro, "Detalhes", () => AbrirArquivo(log), erro.Message);
+        }
+        finally
+        {
+            _atualizando = false;
+        }
+        AtualizarBotao();
+        AtualizarStatus();
+    }
+
     // ───────────────────────── Pasta de destino ─────────────────────────
 
     private void AtualizarPasta()
@@ -1286,6 +1362,9 @@ public partial class MainWindow : Window
         BotaoColar.IsEnabled = !_baixando;
         BotaoLimpar.IsEnabled = !_baixando;
         BotaoAlterar.IsEnabled = !_baixando;
+        BotaoAtualizar.IsEnabled = !_baixando && !_atualizando;
+        if (_atualizando)
+            BotaoBaixar.IsEnabled = false;
         SeletorFormato.IsEnabled = !_baixando;
         CampoMusica.IsReadOnly = CampoArtista.IsReadOnly = _baixando || _nome is null;
         MarcarTodas.IsEnabled = !_baixando && _lista is not null;

@@ -33,10 +33,18 @@
                 </Grid.ColumnDefinitions>
                 <Image Source="Assets/faixa.png" Width="38" Height="38"
                        RenderOptions.BitmapScalingMode="HighQuality" />
-                <StackPanel Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center">
+                <StackPanel x:Name="Marca" Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center" Background="Transparent">
                     <TextBlock Text="Faixa" FontFamily="{StaticResource FonteTitulo}" FontSize="20" FontWeight="SemiBold" />
                     <TextBlock Text="Músicas do YouTube" FontSize="12" Foreground="{StaticResource TextoSuave}" Margin="0,1,0,0" />
                 </StackPanel>
+                <!-- Aparece só quando há versão nova publicada -->
+                <Button x:Name="BotaoAtualizar" Grid.Column="2" Style="{StaticResource BotaoNovidade}"
+                        VerticalAlignment="Center" Visibility="Collapsed" Click="Atualizar_Click">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="&#xE896;" FontFamily="{StaticResource Icones}" FontSize="12" VerticalAlignment="Center" Margin="0,1,7,0" />
+                        <TextBlock x:Name="BotaoAtualizarTexto" Text="Nova versão" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
             </Grid>
 
             <!-- Link -->

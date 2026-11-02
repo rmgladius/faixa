@@ -1,0 +1,26 @@
+Faixa: baixa músicas e playlists do YouTube em MP3 ou no formato original
+
+1. Extraia o Faixa.exe deste zip para uma pasta só dele, por exemplo C:\Faixa.
+   (Evite Documentos e Área de Trabalho: com a proteção contra ransomware do
+   Windows ligada, o Faixa não conseguiria se atualizar sozinho nessas pastas.)
+   Para ter atalho: botão direito no Faixa.exe > Mostrar mais opções >
+   Enviar para > Área de trabalho (criar atalho).
+
+2. Abra o Faixa.exe. Se aparecer "O Windows protegeu o computador", clique em
+   "Mais informações" e depois em "Executar assim mesmo". O aviso aparece porque
+   o programa não tem assinatura digital paga; é só na primeira vez.
+
+3. Na primeira abertura ele baixa os componentes que fazem a conversão
+   (cerca de 160 MB). Espere a barra terminar.
+
+4. Cole o link de uma música ou de uma playlist do YouTube. Aparecem a capa,
+   o artista e o nome da música (dá para corrigir clicando) e a qualidade real
+   do áudio no YouTube. Escolha o formato (MP3 de 128 a 320 kbps, ou o original
+   sem conversão) e clique em Baixar.
+   As músicas vão para Downloads > Músicas (dá para trocar em "Alterar").
+   Playlists ganham uma subpasta com o nome delas.
+
+5. Quando sair versão nova, aparece um botão no canto de cima. Um clique e o
+   Faixa se atualiza e reabre.
+
+Precisa de Windows 10 ou 11 de 64 bits e internet.
