@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Globalization;
 using System.Text;
+using System.Text.Json;
 
 namespace Faixa.Servicos;
 
@@ -21,7 +22,8 @@ public sealed class ErroDownload(TipoErro tipo, string mensagem, string detalhe)
 }
 
 /// <summary>O arquivo pronto e o formato do YouTube que realmente foi baixado (lido do próprio yt-dlp).</summary>
-public sealed record Resultado(string Arquivo, string? FonteCodec, double? FonteKbps);
+/// <param name="Dados">Artista, faixa e álbum oficiais, se o YouTube informar; senão, título e canal.</param>
+public sealed record Resultado(string Arquivo, string? FonteCodec, double? FonteKbps, DadosMusica? Dados = null);
 
 /// <summary>Roda o yt-dlp para um vídeo e devolve o arquivo pronto.</summary>
 public static class Baixador
@@ -47,9 +49,10 @@ public static class Baixador
             "-x",
         };
 
-        if (opcao.Original is { } original)
-            // Mesmo codec na entrada e na saída: o yt-dlp só copia o áudio, sem reconverter.
-            args.AddRange(["--audio-format", original.Codec == "opus" ? "opus" : "m4a"]);
+        if (opcao.SemConversao)
+            // "best": o yt-dlp só copia o áudio (Opus vira .opus, AAC vira .m4a) e nunca reconverte,
+            // nem quando o formato pedido some e ele cai em outro.
+            args.AddRange(["--audio-format", "best"]);
         else
             // MP3 com taxa fixa (-b:a NNNk no FFmpeg).
             args.AddRange(["--audio-format", "mp3", "--audio-quality", $"{opcao.Kbps}K"]);
@@ -72,7 +75,7 @@ public static class Baixador
             "--newline", "--progress", "--progress-delta", "0.25",
             "--progress-template", "download:" + Marca + "dl|%(progress._percent)s",
             "--progress-template", "postprocess:" + Marca + "pp|%(progress.postprocessor)s|%(progress.status)s",
-            "--print", "before_dl:" + Marca + "fonte|%(format_id)s|%(acodec)s|%(abr,tbr)s",
+            "--print", "before_dl:" + Marca + "info|%(.{format_id,acodec,abr,tbr,track,artist,artists,album,release_year,title,channel,uploader})j",
             "--print", "after_move:" + Marca + "arquivo|%(filepath)s",
 
             "--", YouTube.UrlDoVideo(id),
@@ -90,6 +93,7 @@ public static class Baixador
         string? arquivo = null;
         string? fonteCodec = null;
         double? fonteKbps = null;
+        DadosMusica? dados = null;
         var fase = Fase.Iniciando;
         var trava = new object();
         var erros = new List<string>();
@@ -127,10 +131,20 @@ public static class Baixador
                             Avancar(Fase.Finalizando);
                         break;
 
-                    case "fonte" when campos.Length > 3:
-                        fonteCodec = campos[2] is "NA" or "none" ? null : Analisador.NormalizarCodec(campos[2]);
-                        fonteKbps = double.TryParse(campos[3], NumberStyles.Float, CultureInfo.InvariantCulture, out var k) && k > 0
-                            ? k : null;
+                    case "info":
+                        try
+                        {
+                            using var json = JsonDocument.Parse(linha[(Marca.Length + "info|".Length)..]);
+                            var raiz = json.RootElement;
+                            var acodec = Analisador.Texto(raiz, "acodec");
+                            fonteCodec = acodec is null or "none" ? null : Analisador.NormalizarCodec(acodec);
+                            fonteKbps = Analisador.Numero(raiz, "abr") ?? Analisador.Numero(raiz, "tbr");
+                            dados = Analisador.LerDados(raiz);
+                        }
+                        catch (JsonException)
+                        {
+                            // Sem essas informações o arquivo sai com o nome do vídeo; não é motivo para falhar.
+                        }
                         break;
 
                     case "arquivo" when campos.Length > 1:
@@ -183,17 +197,17 @@ public static class Baixador
             throw Traduzir(copia);
         }
 
-        return new Resultado(arquivo, fonteCodec, fonteKbps);
+        return new Resultado(arquivo, fonteCodec, fonteKbps, dados);
     }
 
     /// <summary>
     /// Move o MP3 pronto para a pasta escolhida, substituindo um de mesmo nome.
     /// Falha com IOException/UnauthorizedAccessException se o Windows bloquear a pasta.
     /// </summary>
-    public static string Entregar(string arquivoPronto, string pastaDestino)
+    public static string Entregar(string arquivoPronto, string pastaDestino, string? nomeArquivo = null)
     {
         Directory.CreateDirectory(pastaDestino);
-        var destino = Path.Combine(pastaDestino, Path.GetFileName(arquivoPronto));
+        var destino = Path.Combine(pastaDestino, nomeArquivo ?? Path.GetFileName(arquivoPronto));
         File.Move(arquivoPronto, destino, overwrite: true);
         return destino;
     }
@@ -232,6 +246,8 @@ public static class Baixador
             return new(TipoErro.Indisponivel, "Esse vídeo é privado.", detalhe);
         if (Tem("live event will begin", "premieres in", "is upcoming", "this live event"))
             return new(TipoErro.Indisponivel, "Essa transmissão ainda não começou.", detalhe);
+        if (Tem("playlist does not exist", "playlist is private", "unviewable playlist"))
+            return new(TipoErro.Indisponivel, "Essa playlist não existe ou é privada.", detalhe);
         if (Tem("video unavailable", "has been removed", "not available in your country", "copyright"))
             return new(TipoErro.Indisponivel, "Esse vídeo não está disponível.", detalhe);
         if (Tem("getaddrinfo", "failed to resolve", "timed out", "connection", "network is unreachable", "unable to download webpage"))

@@ -69,50 +69,117 @@
                 </Grid>
             </Border>
 
-            <!-- Capa e nome -->
+            <!-- Cartão: um vídeo (capa, nome, qualidade) ou uma playlist (lista de faixas) -->
             <Border Grid.Row="2" Background="{StaticResource Superficie}" BorderBrush="{StaticResource Borda}"
                     BorderThickness="1" CornerRadius="16" Padding="20,20,20,16" Margin="0,14,0,0">
-                <StackPanel>
-                    <Grid Width="212" Height="212" HorizontalAlignment="Center">
-                        <Grid x:Name="CapaVazia">
-                            <Rectangle RadiusX="12" RadiusY="12" Fill="{StaticResource Superficie2}"
-                                       Stroke="{StaticResource BordaForte}" StrokeThickness="1.5" StrokeDashArray="5 4" />
-                            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
-                                <TextBlock x:Name="CapaVaziaIcone" Text="&#xEC4F;" FontFamily="{StaticResource Icones}" FontSize="40"
-                                           Foreground="{StaticResource TextoApagado}" HorizontalAlignment="Center" />
-                                <TextBlock x:Name="CapaVaziaTexto" Text="A capa aparece aqui" FontSize="12" Margin="0,12,0,0"
-                                           Foreground="{StaticResource TextoApagado}" HorizontalAlignment="Center" />
+                <Grid>
+                    <StackPanel x:Name="PainelVideo">
+                        <Grid Width="196" Height="196" HorizontalAlignment="Center">
+                            <Grid x:Name="CapaVazia">
+                                <Rectangle RadiusX="12" RadiusY="12" Fill="{StaticResource Superficie2}"
+                                           Stroke="{StaticResource BordaForte}" StrokeThickness="1.5" StrokeDashArray="5 4" />
+                                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                                    <TextBlock x:Name="CapaVaziaIcone" Text="&#xEC4F;" FontFamily="{StaticResource Icones}" FontSize="40"
+                                               Foreground="{StaticResource TextoApagado}" HorizontalAlignment="Center" />
+                                    <TextBlock x:Name="CapaVaziaTexto" Text="A capa aparece aqui" FontSize="12" Margin="0,12,0,0"
+                                               Foreground="{StaticResource TextoApagado}" HorizontalAlignment="Center" />
+                                </StackPanel>
+                            </Grid>
+                            <Border x:Name="Capa" CornerRadius="12" Opacity="0" RenderTransformOrigin="0.5,0.5">
+                                <Border.RenderTransform>
+                                    <ScaleTransform x:Name="CapaEscala" />
+                                </Border.RenderTransform>
+                                <Border.Effect>
+                                    <DropShadowEffect BlurRadius="28" ShadowDepth="8" Direction="270" Opacity="0.5" Color="Black" />
+                                </Border.Effect>
+                            </Border>
+                        </Grid>
+
+                        <!-- Música e artista: já limpos, e editáveis com um clique -->
+                        <TextBox x:Name="CampoMusica" Style="{StaticResource CampoNome}" Height="48" Margin="0,14,0,0"
+                                 FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap" MaxLength="200"
+                                 TextChanged="CampoNome_TextChanged" />
+                        <TextBox x:Name="CampoArtista" Style="{StaticResource CampoNome}" Height="24" Margin="0,1,0,0"
+                                 FontSize="13" Foreground="{StaticResource TextoSuave}" MaxLength="150"
+                                 TextChanged="CampoNome_TextChanged" />
+                        <TextBlock x:Name="LinhaOrigem" TextAlignment="Center" FontSize="11" Height="15" Margin="0,2,0,0"
+                                   Foreground="{StaticResource TextoApagado}" />
+
+                        <!-- Qualidade real do áudio no YouTube -->
+                        <Border x:Name="Fonte" Height="28" Margin="0,10,0,0" HorizontalAlignment="Center"
+                                Background="{StaticResource Superficie2}" CornerRadius="14" Padding="12,0" Visibility="Hidden">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock x:Name="FonteIcone" Text="&#xE8D6;" FontFamily="{StaticResource Icones}" FontSize="12"
+                                           Foreground="{StaticResource TextoSuave}" VerticalAlignment="Center" Margin="0,1,8,0" />
+                                <TextBlock x:Name="FonteTexto" FontSize="12" Foreground="{StaticResource TextoSuave}" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+
+                    <!-- Playlist: ocupa exatamente a altura do painel do vídeo -->
+                    <Grid x:Name="PainelLista" Visibility="Collapsed" Height="{Binding ActualHeight, ElementName=PainelVideo}">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition />
+                        </Grid.RowDefinitions>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition />
+                            </Grid.ColumnDefinitions>
+                            <Border x:Name="ListaCapa" Width="64" Height="64" CornerRadius="10" Background="{StaticResource Superficie2}">
+                                <TextBlock x:Name="ListaCapaIcone" Text="&#xE90B;" FontFamily="{StaticResource Icones}" FontSize="24"
+                                           Foreground="{StaticResource TextoApagado}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <StackPanel Grid.Column="1" Margin="14,0,0,0" VerticalAlignment="Center">
+                                <TextBlock x:Name="ListaTipo" Text="PLAYLIST" FontSize="10.5" FontWeight="Bold"
+                                           Foreground="{StaticResource Destaque}" />
+                                <TextBlock x:Name="ListaTitulo" FontSize="15" FontWeight="SemiBold" Margin="0,2,0,0"
+                                           TextTrimming="CharacterEllipsis" />
+                                <TextBlock x:Name="ListaResumo" FontSize="12" Margin="0,2,0,0"
+                                           Foreground="{StaticResource TextoSuave}" TextTrimming="CharacterEllipsis" />
                             </StackPanel>
                         </Grid>
-                        <Border x:Name="Capa" CornerRadius="12" Opacity="0" RenderTransformOrigin="0.5,0.5">
-                            <Border.RenderTransform>
-                                <ScaleTransform x:Name="CapaEscala" />
-                            </Border.RenderTransform>
-                            <Border.Effect>
-                                <DropShadowEffect BlurRadius="28" ShadowDepth="8" Direction="270" Opacity="0.5" Color="Black" />
-                            </Border.Effect>
-                        </Border>
+                        <Grid Grid.Row="1" Margin="0,12,0,6">
+                            <CheckBox x:Name="MarcarTodas" Style="{StaticResource Marcador}" Content="Todas"
+                                      Click="MarcarTodas_Click" />
+                            <TextBlock x:Name="ListaSelecao" HorizontalAlignment="Right" VerticalAlignment="Center"
+                                       FontSize="12" Foreground="{StaticResource TextoSuave}" />
+                        </Grid>
+                        <ListBox x:Name="ListaFaixas" Grid.Row="2" Style="{StaticResource ListaLimpa}"
+                                 ItemContainerStyle="{StaticResource ItemFaixa}">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Height="40" ToolTip="{Binding Detalhe}" Opacity="{Binding Opacidade}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="28" />
+                                            <ColumnDefinition Width="26" />
+                                            <ColumnDefinition />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <CheckBox Style="{StaticResource Marcador}" VerticalAlignment="Center"
+                                                  IsChecked="{Binding Selecionada, Mode=TwoWay}" IsEnabled="{Binding PodeMarcar}"
+                                                  Click="MarcarFaixa_Click" />
+                                        <TextBlock Grid.Column="1" Text="{Binding Numero}" FontSize="11.5" VerticalAlignment="Center"
+                                                   Foreground="{StaticResource TextoApagado}" />
+                                        <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Musica}" FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Text="{Binding Artista}" FontSize="11.5" Margin="0,1,0,0"
+                                                       Foreground="{StaticResource TextoSuave}" TextTrimming="CharacterEllipsis" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center" Margin="10,0,4,0">
+                                            <TextBlock Text="{Binding Icone}" FontFamily="{StaticResource Icones}" FontSize="12"
+                                                       Foreground="{Binding Cor}" VerticalAlignment="Center" Margin="0,1,0,0" />
+                                            <TextBlock Text="{Binding Situacao}" FontSize="11.5" Foreground="{Binding Cor}"
+                                                       VerticalAlignment="Center" Margin="4,0,0,0" />
+                                        </StackPanel>
+                                    </Grid>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
                     </Grid>
-
-                    <Grid Height="44" Margin="0,16,0,0">
-                        <TextBlock x:Name="Titulo" TextAlignment="Center" VerticalAlignment="Center"
-                                   FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap" TextTrimming="CharacterEllipsis"
-                                   LineHeight="22" LineStackingStrategy="BlockLineHeight" MaxHeight="44"
-                                   Text="Nenhuma música ainda" Foreground="{StaticResource TextoApagado}" />
-                    </Grid>
-                    <TextBlock x:Name="Canal" TextAlignment="Center" FontSize="13" Height="18" Margin="0,3,0,0"
-                               Foreground="{StaticResource TextoSuave}" TextTrimming="CharacterEllipsis" />
-
-                    <!-- Qualidade real do áudio no YouTube -->
-                    <Border x:Name="Fonte" Height="28" Margin="0,14,0,0" HorizontalAlignment="Center"
-                            Background="{StaticResource Superficie2}" CornerRadius="14" Padding="12,0" Visibility="Hidden">
-                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                            <TextBlock x:Name="FonteIcone" Text="&#xE8D6;" FontFamily="{StaticResource Icones}" FontSize="12"
-                                       Foreground="{StaticResource TextoSuave}" VerticalAlignment="Center" Margin="0,1,8,0" />
-                            <TextBlock x:Name="FonteTexto" FontSize="12" Foreground="{StaticResource TextoSuave}" VerticalAlignment="Center" />
-                        </StackPanel>
-                    </Border>
-                </StackPanel>
+                </Grid>
             </Border>
 
             <!-- Formato e Baixar -->

@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
@@ -52,6 +53,21 @@ public partial class MainWindow : Window
     private string? _pendente;
     private string? _pastaPendente;
     private string? _descricaoPendente;
+    private string? _nomeArquivoPendente;
+
+    // Nome da música: limpo do título ou oficial do YouTube; a pessoa pode editar.
+    private NomeMusica? _nome;
+    private bool _nomeEditado;
+    private bool _definindoNome;
+
+    // Link atual e modo playlist.
+    private LinkYouTube? _link;
+    private bool _modoLista;
+    private InfoLista? _lista;
+    private bool _carregandoLista;
+    private bool _falhaLista;
+    private CancellationTokenSource? _ctsLista;
+    private readonly ObservableCollection<FaixaDaLista> _faixas = [];
 
     // Análise do áudio: os formatos que o YouTube oferece para o vídeo atual.
     private InfoAudio? _audio;
@@ -85,6 +101,7 @@ public partial class MainWindow : Window
             ProcessarLink();
         };
 
+        ListaFaixas.ItemsSource = _faixas;
         MontarOpcoes();
 
         Loaded += OnLoaded;
@@ -239,7 +256,7 @@ public partial class MainWindow : Window
         _espera.Stop();
         ProcessarLink();
         if (BotaoBaixar.IsEnabled && !_baixando)
-            _ = BaixarAsync();
+            _ = _modoLista ? BaixarListaAsync() : BaixarAsync();
     }
 
     private void OnPreviewKeyDown(object sender, KeyEventArgs e)
@@ -303,40 +320,69 @@ public partial class MainWindow : Window
     private void ProcessarLink()
     {
         var texto = CampoLink.Text.Trim();
-        var id = YouTube.ExtrairId(texto);
+        var link = YouTube.ExtrairLink(texto);
 
-        // Mesmo vídeo de antes (ex.: só mudou o "&t=30s" do link): não recarrega nem apaga o "baixada".
-        if (id is not null && (id == _video?.Id || id == _idCarregando))
+        // Mesmo link de antes: não recarrega nem apaga o "baixada".
+        if (link is not null && link == _link)
             return;
+        // Mesmo vídeo, só mudou o resto do link (ex.: "&t=30s" ou a playlist): atualiza a oferta de playlist.
+        if (link?.VideoId is { } mesmo && !_modoLista && mesmo == (_video?.Id ?? _idCarregando))
+        {
+            _link = link;
+            AtualizarStatus();
+            return;
+        }
 
+        _link = link;
+        ZerarTudo();
+
+        if (texto.Length == 0)
+        {
+            _avisoLink = null;
+            MostrarCapaVazia("A capa aparece aqui");
+            MostrarSemNome("Nenhuma música ainda");
+        }
+        else if (link is null)
+        {
+            _avisoLink = new Aviso("Esse link não parece ser do YouTube.", Tom.Erro);
+            MostrarCapaVazia("Link não reconhecido", IconeAlerta);
+            MostrarSemNome("Nenhuma música ainda");
+        }
+        else if (link.VideoId is { } id)
+        {
+            _avisoLink = null;
+            _ = CarregarPreviaAsync(id);
+        }
+        else
+        {
+            _avisoLink = null;
+            _ = CarregarListaAsync(link.ListaId!);
+        }
+
+        AtualizarBotao();
+        AtualizarStatus();
+    }
+
+    /// <summary>Esquece vídeo, análise e playlist (troca de link).</summary>
+    private void ZerarTudo()
+    {
         _ctsPrevia?.Cancel();
         _idCarregando = null;
         _video = null;
         _baixada = false;
         _pendente = null;
         _avisoResultado = null;
+        _nome = null;
+        _nomeEditado = false;
+
+        _ctsLista?.Cancel();
+        _ctsLista = null;
+        _lista = null;
+        _carregandoLista = false;
+        _falhaLista = false;
+        _faixas.Clear();
+        MostrarModoLista(false);
         ZerarAnalise();
-
-        if (texto.Length == 0)
-        {
-            _avisoLink = null;
-            MostrarCapaVazia("A capa aparece aqui");
-            MostrarTitulo("Nenhuma música ainda", "", apagado: true);
-        }
-        else if (id is null)
-        {
-            _avisoLink = new Aviso("Esse link não parece ser do YouTube.", Tom.Erro);
-            MostrarCapaVazia("Link não reconhecido", IconeAlerta);
-            MostrarTitulo("Nenhuma música ainda", "", apagado: true);
-        }
-        else
-        {
-            _avisoLink = null;
-            _ = CarregarPreviaAsync(id);
-        }
-
-        AtualizarBotao();
-        AtualizarStatus();
     }
 
     private async Task CarregarPreviaAsync(string id)
@@ -344,7 +390,7 @@ public partial class MainWindow : Window
         var cts = _ctsPrevia = new CancellationTokenSource();
         _idCarregando = id;
         MostrarCapaVazia("Carregando…", pulsando: true);
-        MostrarTitulo("Buscando o vídeo…", "", apagado: true);
+        MostrarSemNome("Buscando o vídeo…");
 
         try
         {
@@ -353,7 +399,7 @@ public partial class MainWindow : Window
                 return;
             _video = info;
             MostrarCapa(info.Capa);
-            MostrarTitulo(info.Titulo, info.Canal);
+            DefinirNome(Metadados.Resolver(new DadosMusica(info.Titulo, info.Canal)));
             AnalisarSePreciso();
         }
         catch (VideoNaoEncontradoException)
@@ -362,7 +408,7 @@ public partial class MainWindow : Window
                 return;
             _avisoLink = new Aviso("Vídeo não encontrado. Pode ser privado ou ter sido removido.", Tom.Erro);
             MostrarCapaVazia("Vídeo não encontrado", IconeAlerta);
-            MostrarTitulo("Nenhuma música ainda", "", apagado: true);
+            MostrarSemNome("Nenhuma música ainda");
         }
         catch (OperationCanceledException)
         {
@@ -375,7 +421,7 @@ public partial class MainWindow : Window
             // A prévia falhou, mas o download pode funcionar: deixa tentar.
             _video = new InfoVideo(id, "Vídeo do YouTube", "", null);
             MostrarCapa(null);
-            MostrarTitulo(_video.Titulo, "");
+            DefinirNome(Metadados.Resolver(new DadosMusica(_video.Titulo, "")));
             AnalisarSePreciso();
         }
         finally
@@ -399,7 +445,7 @@ public partial class MainWindow : Window
             _ctsDownload?.Cancel();
             return;
         }
-        _ = BaixarAsync();
+        _ = _modoLista ? BaixarListaAsync() : BaixarAsync();
     }
 
     private async Task BaixarAsync()
@@ -449,6 +495,15 @@ public partial class MainWindow : Window
             _pendente = pronto.Arquivo;
             _pastaPendente = destino;
             _descricaoPendente = DescreverResultado(opcao, pronto);
+
+            // Nome: o editado na tela; senão, o que o YouTube informou no próprio download.
+            var nome = _nomeEditado && _nome is not null
+                ? _nome
+                : pronto.Dados is { } dados ? Metadados.Resolver(dados) : _nome ?? Metadados.Resolver(new DadosMusica(video.Titulo, video.Canal));
+            if (!_nomeEditado && nome != _nome)
+                DefinirNome(nome);
+            GravarEtiquetas(pronto.Arquivo, nome, null);
+            _nomeArquivoPendente = Metadados.NomeDeArquivo(nome, Path.GetExtension(pronto.Arquivo).TrimStart('.'));
             await EntregarPendenteAsync();
         }
         catch (OperationCanceledException)
@@ -496,7 +551,7 @@ public partial class MainWindow : Window
         var pasta = Config.NomeAmigavel(_pastaPendente);
         try
         {
-            var final = Baixador.Entregar(_pendente, _pastaPendente);
+            var final = Baixador.Entregar(_pendente, _pastaPendente, _nomeArquivoPendente);
             _pendente = null;
             _baixada = true;
             var onde = Config.NomeAmigavel(Path.GetDirectoryName(final) ?? _pastaPendente);
@@ -635,7 +690,7 @@ public partial class MainWindow : Window
                 BarraIndeterminada();
                 break;
             case Fase.Convertendo:
-                MostrarStatus(_opcaoEmAndamento is { Original: not null }
+                MostrarStatus(_opcaoEmAndamento is { SemConversao: true }
                     ? "Gravando o áudio original, sem conversão…"
                     : $"Convertendo para MP3 {_opcaoEmAndamento?.Kbps ?? 320} kbps…");
                 BarraIndeterminada();
@@ -656,7 +711,9 @@ public partial class MainWindow : Window
     private void MontarOpcoes()
     {
         _montandoOpcoes = true;
-        _opcoes = Formatos.Montar(_audio);
+        _opcoes = _modoLista
+            ? Formatos.Montar(null, _faixas.Where(f => f.Selecionada && f.Item.Disponivel).Sum(f => f.Item.Duracao ?? 0))
+            : Formatos.Montar(_audio);
         SeletorFormato.ItemsSource = _opcoes;
         SeletorFormato.SelectedItem = Formatos.Escolher(_opcoes, _config.Formato);
         _montandoOpcoes = false;
@@ -669,6 +726,7 @@ public partial class MainWindow : Window
         _config.Formato = opcao.Chave;
         if (!Capturando)
             _config.Salvar();
+        MostrarOrigem();
 
         // Já baixou neste formato? Escolher outro libera baixar de novo.
         if (_baixada)
@@ -694,7 +752,9 @@ public partial class MainWindow : Window
 
     private void AnalisarSePreciso()
     {
-        if (_prontos && _video is { } video && !_analisando && _audio is null && _falhaAnalise is null && !Capturando)
+        if (_prontos && _modoLista && _lista is null && !_carregandoLista && !_falhaLista && _link?.ListaId is { } listaId && !Capturando)
+            _ = CarregarListaAsync(listaId);
+        else if (_prontos && _video is { } video && !_analisando && _audio is null && _falhaAnalise is null && !Capturando)
             _ = AnalisarAsync(video.Id);
         else
             MostrarFonte();
@@ -720,6 +780,8 @@ public partial class MainWindow : Window
             if (cts.IsCancellationRequested || _video?.Id != id)
                 return;
             _audio = audio;
+            if (!_nomeEditado && audio.Dados is { } dados)
+                DefinirNome(Metadados.Resolver(dados));
         }
         catch (OperationCanceledException)
         {
@@ -790,9 +852,324 @@ public partial class MainWindow : Window
         var fonte = r.FonteCodec is string codec && r.FonteKbps is double kbps
             ? $"{Analisador.NomeDoCodec(codec)} {Math.Round(kbps):0} kbps"
             : null;
-        return opcao.Original is not null
+        return opcao.SemConversao
             ? (fonte is null ? "Áudio original, sem conversão" : $"{fonte}, sem conversão")
             : (fonte is null ? $"MP3 {opcao.Kbps} kbps" : $"{fonte} → MP3 {opcao.Kbps} kbps");
+    }
+
+    // ───────────────────────── Playlist ─────────────────────────
+
+    private void MostrarModoLista(bool lista)
+    {
+        _modoLista = lista;
+        PainelVideo.Visibility = lista ? Visibility.Hidden : Visibility.Visible;
+        PainelLista.Visibility = lista ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    /// <summary>"Playlist inteira": o link tinha vídeo e playlist, e a pessoa quer a playlist.</summary>
+    private void AbrirPlaylistDoLink()
+    {
+        if (_link?.ListaId is { } listaId && !_baixando)
+            _ = CarregarListaAsync(listaId);
+    }
+
+    /// <summary>"Só esta música": volta ao vídeo do link.</summary>
+    private void VoltarAoVideo()
+    {
+        if (_link?.VideoId is not { } id || _baixando)
+            return;
+        ZerarTudo();
+        _ = CarregarPreviaAsync(id);
+        AtualizarBotao();
+        AtualizarStatus();
+    }
+
+    private async Task CarregarListaAsync(string listaId)
+    {
+        ZerarTudo();
+        MostrarModoLista(true);
+        ListaTipo.Text = "PLAYLIST";
+        ListaTitulo.Text = _prontos ? "Lendo a playlist…" : "A playlist abre depois do preparo";
+        ListaResumo.Text = "";
+        ListaSelecao.Text = "";
+        ListaCapa.Background = Pincel("Superficie2");
+        ListaCapaIcone.Visibility = Visibility.Visible;
+        MarcarTodas.IsChecked = false;
+        MontarOpcoes();
+        if (!_prontos)
+        {
+            AtualizarBotao();
+            AtualizarStatus();
+            return; // AnalisarSePreciso chama de novo quando o preparo terminar
+        }
+
+        var cts = _ctsLista = CancellationTokenSource.CreateLinkedTokenSource(_ctsJanela.Token);
+        _carregandoLista = true;
+        AtualizarBotao();
+        AtualizarStatus();
+
+        try
+        {
+            if (_atualizacao is { } atualizacao)
+            {
+                await atualizacao;
+                _atualizacao = null;
+            }
+            var lista = await Playlists.ListarAsync(listaId, cts.Token);
+            if (cts.IsCancellationRequested)
+                return;
+            MostrarLista(lista);
+            _ = CarregarCapaDaListaAsync(lista, cts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+        catch (Exception erro)
+        {
+            if (cts.IsCancellationRequested)
+                return;
+            _falhaLista = true;
+            ListaTitulo.Text = "Não consegui abrir a playlist";
+            if (erro is ErroDownload falha)
+            {
+                RegistrarErro("Playlist: " + falha.Message, falha.Detalhe);
+                _avisoAnalise = new Aviso(falha.Message, Tom.Erro, Detalhe: falha.Detalhe);
+            }
+            else
+            {
+                var log = RegistrarErro("Playlist", erro.ToString());
+                _avisoAnalise = new Aviso("Não consegui ler a playlist.", Tom.Erro, "Detalhes", () => AbrirArquivo(log), erro.Message);
+            }
+        }
+        finally
+        {
+            if (ReferenceEquals(_ctsLista, cts))
+                _carregandoLista = false;
+        }
+
+        AtualizarSelecao();
+        AtualizarStatus();
+    }
+
+    private void MostrarLista(InfoLista lista)
+    {
+        _lista = lista;
+        _faixas.Clear();
+        foreach (var item in lista.Itens)
+            _faixas.Add(new FaixaDaLista(item));
+
+        ListaTipo.Text = lista.EhAlbum ? "ÁLBUM" : "PLAYLIST";
+        ListaTitulo.Text = lista.Titulo;
+        var partes = new List<string>();
+        if (lista.Canal.Length > 0)
+            partes.Add(lista.Canal);
+        partes.Add(lista.Disponiveis == 1 ? "1 música" : $"{lista.Disponiveis} músicas");
+        if (lista.DuracaoTotal > 0)
+            partes.Add(Formatos.DuracaoLonga(lista.DuracaoTotal));
+        var fora = lista.Itens.Count - lista.Disponiveis;
+        if (fora > 0)
+            partes.Add(fora == 1 ? "1 indisponível" : $"{fora} indisponíveis");
+        ListaResumo.Text = string.Join(" · ", partes);
+        ListaResumo.ToolTip = ListaResumo.Text;
+    }
+
+    private async Task CarregarCapaDaListaAsync(InfoLista lista, CancellationToken ct)
+    {
+        var primeira = lista.Itens.FirstOrDefault(i => i.Disponivel);
+        if (primeira is null)
+            return;
+        try
+        {
+            var bytes = await YouTube.BuscarCapaAsync(primeira.Id, ct);
+            if (ct.IsCancellationRequested || bytes is null || CarregarImagem(bytes) is not { } imagem)
+                return;
+            ListaCapa.Background = new ImageBrush(imagem) { Stretch = Stretch.UniformToFill };
+            ListaCapaIcone.Visibility = Visibility.Collapsed;
+        }
+        catch (Exception erro) when (erro is OperationCanceledException or System.Net.Http.HttpRequestException)
+        {
+            // Sem capa: fica o ícone.
+        }
+    }
+
+    /// <summary>Contagem de marcadas, caixa "Todas", tamanhos do seletor e texto do botão.</summary>
+    private void AtualizarSelecao()
+    {
+        var disponiveis = _faixas.Count(f => f.Item.Disponivel);
+        var marcadas = _faixas.Count(f => f.Selecionada && f.Item.Disponivel);
+        ListaSelecao.Text = _lista is null ? "" : $"{marcadas} de {disponiveis} marcadas";
+        MarcarTodas.IsChecked = marcadas == 0 ? false : marcadas == disponiveis ? true : null;
+        MontarOpcoes();
+        AtualizarBotao();
+    }
+
+    private void MarcarTodas_Click(object sender, RoutedEventArgs e)
+    {
+        var marcar = _faixas.Any(f => f.PodeMarcar && !f.Selecionada);
+        foreach (var faixa in _faixas.Where(f => f.PodeMarcar))
+            faixa.Selecionada = marcar;
+        AtualizarSelecao();
+        AtualizarStatus();
+    }
+
+    private void MarcarFaixa_Click(object sender, RoutedEventArgs e)
+    {
+        AtualizarSelecao();
+        AtualizarStatus();
+    }
+
+    /// <summary>Baixa as faixas marcadas, uma de cada vez, numa subpasta com o nome da playlist.</summary>
+    private async Task BaixarListaAsync()
+    {
+        if (_lista is not { } lista || !_prontos || _baixando)
+            return;
+        var fila = _faixas.Where(f => f.Pendente).ToList();
+        if (fila.Count == 0)
+            return;
+
+        _baixando = true;
+        _avisoResultado = null;
+        var cts = _ctsDownload = new CancellationTokenSource();
+        var opcao = _opcaoEmAndamento = OpcaoAtual;
+        var pasta = Path.Combine(_config.PastaEfetiva, Metadados.Sanitizar(lista.Titulo));
+        foreach (var faixa in fila)
+        {
+            faixa.Estado = EstadoFaixa.Aguardando;
+            faixa.Percentual = 0;
+        }
+        AtualizarBotao();
+
+        int feitas = 0, falhas = 0;
+        var cancelado = false;
+        var atualizou = false;
+        try
+        {
+            if (_atualizacao is { } atualizacao)
+            {
+                MostrarStatus("Atualizando o yt-dlp…");
+                BarraIndeterminada();
+                await atualizacao;
+                _atualizacao = null;
+            }
+
+            for (var i = 0; i < fila.Count; i++)
+            {
+                cts.Token.ThrowIfCancellationRequested();
+                var faixa = fila[i];
+                var indice = i;
+                faixa.Estado = EstadoFaixa.Baixando;
+                ListaFaixas.ScrollIntoView(faixa);
+                var progresso = new Progress<Progresso>(p => MostrarProgressoLista(faixa, indice, fila.Count, p));
+
+                try
+                {
+                    Resultado r;
+                    try
+                    {
+                        r = await Baixador.BaixarAsync(faixa.Item.Id, opcao, null, progresso, cts.Token);
+                    }
+                    catch (ErroDownload erro) when (erro.ValeAtualizar && !atualizou
+                                                    && DateTime.Now - _config.UltimaAtualizacaoYtDlp > TimeSpan.FromHours(1))
+                    {
+                        atualizou = true;
+                        RegistrarErro("Primeira tentativa", erro.Detalhe);
+                        MostrarStatus("Atualizando o yt-dlp e tentando de novo…");
+                        BarraIndeterminada();
+                        await AtualizarYtDlpAsync();
+                        r = await Baixador.BaixarAsync(faixa.Item.Id, opcao, null, progresso, cts.Token);
+                    }
+
+                    var nome = r.Dados is { } dados ? Metadados.Resolver(dados) : faixa.Nome;
+                    if (lista.EhAlbum && nome.Album is null)
+                        nome = nome with { Album = lista.Titulo };
+                    int? numero = lista.EhAlbum ? faixa.Numero : null;
+                    GravarEtiquetas(r.Arquivo, nome, numero);
+                    Baixador.Entregar(r.Arquivo, pasta,
+                        Metadados.NomeDeArquivo(nome, Path.GetExtension(r.Arquivo).TrimStart('.'), numero));
+
+                    faixa.Nome = nome;
+                    faixa.Estado = EstadoFaixa.Pronta;
+                    faixa.Detalhe = DescreverResultado(opcao, r);
+                    feitas++;
+                }
+                catch (ErroDownload erro)
+                {
+                    RegistrarErro($"{faixa.Musica}: {erro.Message}", erro.Detalhe);
+                    faixa.Estado = EstadoFaixa.Falhou;
+                    faixa.Detalhe = erro.Message;
+                    falhas++;
+                }
+                catch (Exception erro) when (erro is IOException or UnauthorizedAccessException)
+                {
+                    RegistrarErro($"{faixa.Musica}: gravação recusada", erro.ToString());
+                    faixa.Estado = EstadoFaixa.Falhou;
+                    faixa.Detalhe = $"Não consegui gravar em {Config.NomeAmigavel(pasta)}.";
+                    falhas++;
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            cancelado = true;
+        }
+        catch (Exception erro)
+        {
+            var log = RegistrarErro("Falha ao rodar o yt-dlp", erro.ToString());
+            _avisoResultado = new Aviso("Não consegui rodar o yt-dlp. O antivírus pode ter bloqueado.", Tom.Erro,
+                "Detalhes", () => AbrirArquivo(log), erro.Message);
+        }
+        finally
+        {
+            foreach (var faixa in fila.Where(f => f.Estado == EstadoFaixa.Baixando))
+                faixa.Estado = EstadoFaixa.Aguardando;
+            _baixando = false;
+            _ctsDownload = null;
+            cts.Dispose();
+        }
+
+        var onde = Config.NomeAmigavel(pasta);
+        Action? abrir = feitas > 0 ? () => AbrirPasta(pasta) : null;
+        _avisoResultado ??= cancelado
+            ? new Aviso($"Download cancelado. {feitas} de {fila.Count} salvas em {onde}.", Tom.Neutro, abrir is null ? null : "Abrir pasta", abrir)
+            : falhas == 0
+                ? new Aviso(feitas == 1 ? $"1 música salva em {onde}." : $"{feitas} músicas salvas em {onde}.", Tom.Sucesso, "Abrir pasta", abrir, pasta)
+                : new Aviso($"{feitas} de {fila.Count} salvas. {(falhas == 1 ? "1 falhou" : $"{falhas} falharam")}: passe o mouse na faixa para ver o motivo.",
+                    Tom.Erro, abrir is null ? null : "Abrir pasta", abrir);
+
+        AtualizarSelecao();
+        AtualizarStatus();
+        if (_avisoResultado.Tom == Tom.Erro)
+        {
+            Tarefa.ProgressState = TaskbarItemProgressState.Error;
+            Tarefa.ProgressValue = 1;
+        }
+    }
+
+    private void MostrarProgressoLista(FaixaDaLista faixa, int indice, int total, Progresso p)
+    {
+        if (!_baixando)
+            return;
+
+        var fracao = p.Fase switch
+        {
+            Fase.Baixando when p.Fracao is { } f => f * 0.85,
+            Fase.Convertendo => 0.9,
+            Fase.Finalizando => 0.97,
+            _ => 0.02,
+        };
+        faixa.Percentual = fracao;
+        var geral = (indice + fracao) / total;
+        var etapa = p.Fase switch
+        {
+            Fase.Convertendo => opcaoSemConversao() ? "gravando" : "convertendo",
+            Fase.Finalizando => "gravando a capa",
+            _ => "baixando",
+        };
+        MostrarStatus($"{indice + 1} de {total}, {etapa}: {faixa.Musica}", percentual: $"{(int)(geral * 100)}%");
+        BarraDeterminada(geral);
+
+        bool opcaoSemConversao() => _opcaoEmAndamento?.SemConversao == true;
     }
 
     // ───────────────────────── Pasta de destino ─────────────────────────
@@ -884,8 +1261,14 @@ public partial class MainWindow : Window
 
     private void AtualizarBotao()
     {
+        var pendentes = _modoLista ? _faixas.Count(f => f.Pendente) : 0;
+        var listaPronta = _modoLista && pendentes == 0 && _faixas.Any(f => f.Selecionada && f.Estado == EstadoFaixa.Pronta);
         var (icone, texto, habilitado) =
             _baixando ? (IconeCancelar, "Cancelar", true)
+            : _modoLista && _carregandoLista ? (IconeBaixar, "Lendo a playlist…", false)
+            : _modoLista && !_prontos ? (IconeBaixar, _preparando ? "Aguarde o preparo" : "Baixar", false)
+            : _modoLista && listaPronta ? (IconeOk, "Baixadas", false)
+            : _modoLista ? (IconeBaixar, pendentes switch { 0 => "Marque as músicas", 1 => "Baixar 1 música", _ => $"Baixar {pendentes} músicas" }, pendentes > 0 && _lista is not null)
             : _baixada ? (IconeOk, "Baixada", false)
             : _video is null ? (IconeBaixar, "Baixar", false)
             : !_prontos ? (IconeBaixar, _preparando ? "Aguarde o preparo" : "Baixar", false)
@@ -894,7 +1277,7 @@ public partial class MainWindow : Window
             : (IconeBaixar, "Baixar", true);
 
         BotaoBaixar.Style = (Style)FindResource(_baixando ? "BotaoSecundario" : "BotaoPrincipal");
-        BotaoBaixar.Tag = !_baixando && _baixada ? "ok" : null;
+        BotaoBaixar.Tag = !_baixando && (_modoLista ? listaPronta : _baixada) ? "ok" : null;
         BotaoBaixar.IsEnabled = habilitado;
         BotaoIcone.Text = icone;
         BotaoTexto.Text = texto;
@@ -904,6 +1287,8 @@ public partial class MainWindow : Window
         BotaoLimpar.IsEnabled = !_baixando;
         BotaoAlterar.IsEnabled = !_baixando;
         SeletorFormato.IsEnabled = !_baixando;
+        CampoMusica.IsReadOnly = CampoArtista.IsReadOnly = _baixando || _nome is null;
+        MarcarTodas.IsEnabled = !_baixando && _lista is not null;
     }
 
     /// <summary>Decide o que mostrar no status quando não há download rodando.</summary>
@@ -923,8 +1308,14 @@ public partial class MainWindow : Window
         var aviso = _avisoLink ?? _avisoPreparo ?? _avisoResultado ?? _avisoAnalise;
         if (aviso is not null)
             MostrarStatus(aviso.Texto, aviso.Tom, acao: aviso.Acao, aoClicar: aviso.AoClicar, detalhe: aviso.Detalhe);
+        else if (_modoLista && _lista is not null)
+            MostrarStatus(Formatos.ExplicarLista(OpcaoAtual),
+                acao: _link?.VideoId is not null ? "Só esta música" : null, aoClicar: VoltarAoVideo);
         else if (_video is not null && _audio is not null)
-            MostrarStatus(Formatos.Explicar(OpcaoAtual, _audio));
+            MostrarStatus(Formatos.Explicar(OpcaoAtual, _audio),
+                acao: _link?.ListaId is not null ? "Playlist inteira" : null, aoClicar: AbrirPlaylistDoLink);
+        else if (_video is not null && _link?.ListaId is not null)
+            MostrarStatus("Esse link também tem uma playlist.", acao: "Playlist inteira", aoClicar: AbrirPlaylistDoLink);
         else
             MostrarStatus("");
     }
@@ -948,11 +1339,76 @@ public partial class MainWindow : Window
         BotaoAcao.Visibility = acao is null ? Visibility.Collapsed : Visibility.Visible;
     }
 
-    private void MostrarTitulo(string titulo, string canal, bool apagado = false)
+    private void MostrarSemNome(string texto)
     {
-        Titulo.Text = titulo;
-        Titulo.Foreground = Pincel(apagado ? "TextoApagado" : "Texto");
-        Canal.Text = canal;
+        _definindoNome = true;
+        CampoMusica.Text = texto;
+        CampoArtista.Text = "";
+        _definindoNome = false;
+        CampoMusica.IsReadOnly = CampoArtista.IsReadOnly = true;
+        CampoMusica.Foreground = Pincel("TextoApagado");
+        LinhaOrigem.Text = "";
+        LinhaOrigem.ToolTip = null;
+    }
+
+    private void DefinirNome(NomeMusica nome)
+    {
+        _nome = nome;
+        _definindoNome = true;
+        CampoMusica.Text = nome.Musica;
+        CampoArtista.Text = nome.Artista;
+        _definindoNome = false;
+        CampoMusica.IsReadOnly = CampoArtista.IsReadOnly = _baixando;
+        CampoMusica.Foreground = Pincel("Texto");
+        MostrarOrigem();
+    }
+
+    /// <summary>A linha que diz de onde veio o nome, e a dica com o nome do arquivo.</summary>
+    private void MostrarOrigem()
+    {
+        if (_nome is null)
+        {
+            LinhaOrigem.Text = "";
+            return;
+        }
+
+        var (texto, cor) = _nome.Origem switch
+        {
+            OrigemNome.Oficial => ("Dados oficiais do YouTube", "Sucesso"),
+            OrigemNome.Titulo => ("Separado do título do vídeo · clique para corrigir", "TextoApagado"),
+            OrigemNome.Canal => ("Artista = nome do canal · clique para corrigir", "TextoApagado"),
+            _ => ("Editado por você", "TextoSuave"),
+        };
+        LinhaOrigem.Text = texto;
+        LinhaOrigem.Foreground = Pincel(cor);
+        LinhaOrigem.ToolTip = "O arquivo vai se chamar: " + Metadados.NomeDeArquivo(_nome, OpcaoAtual.Extensao);
+    }
+
+    private void CampoNome_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (_definindoNome || _nome is null)
+            return;
+        _nomeEditado = true;
+        _nome = _nome with
+        {
+            Musica = CampoMusica.Text.Trim(),
+            Artista = CampoArtista.Text.Trim(),
+            Origem = OrigemNome.Editado,
+        };
+        MostrarOrigem();
+    }
+
+    private void GravarEtiquetas(string arquivo, NomeMusica nome, int? faixa)
+    {
+        try
+        {
+            Etiquetas.Gravar(arquivo, nome, faixa);
+        }
+        catch (Exception erro)
+        {
+            // O arquivo continua bom, só fica com os dados que o yt-dlp gravou.
+            RegistrarErro("Gravação das informações da música", erro.ToString());
+        }
     }
 
     private void MostrarCapaVazia(string texto, string icone = IconeNota, bool pulsando = false)
@@ -1111,6 +1567,18 @@ public partial class MainWindow : Window
 
     // ───────────────────────── Capturas de tela (desenvolvimento) ─────────────────────────
 
+    private const string JsonPlaylistDeExemplo = """
+        {"_type": "playlist", "id": "PLcapturasfaixa", "title": "Clássicos dos 80", "uploader": "Rodrigo", "entries": [
+          {"id": "dQw4w9WgXcQ", "title": "Rick Astley - Never Gonna Give You Up (Official Video) (4K Remaster)", "duration": 213, "channel": "Rick Astley"},
+          {"id": "fJ9rUzIMcZQ", "title": "Queen – Bohemian Rhapsody (Official Video Remastered)", "duration": 359, "channel": "Queen Official"},
+          {"id": "djV11Xbc914", "title": "a-ha - Take On Me (Official Video) [4K]", "duration": 245, "channel": "a-ha"},
+          {"id": "1w7OgIMMRc4", "title": "Guns N' Roses - Sweet Child O' Mine (Official Music Video)", "duration": 356, "channel": "GunsNRosesVEVO"},
+          {"id": "xxxxxxxxxx1", "title": "[Private video]", "duration": null},
+          {"id": "Zi_XLOBDo_Y", "title": "Michael Jackson - Billie Jean (Official Video)", "duration": 294, "channel": "Michael Jackson"},
+          {"id": "lDK9QqIzhwk", "title": "Bon Jovi - Livin' On A Prayer (Official Music Video)", "duration": 251, "channel": "Bon Jovi"}
+        ]}
+        """;
+
     private const string JsonDeExemplo = """
         {"id": "dQw4w9WgXcQ", "duration": 213, "formats": [
           {"format_id": "sb0", "vcodec": "none", "acodec": "none", "ext": "mhtml", "format_note": "storyboard"},
@@ -1207,6 +1675,14 @@ public partial class MainWindow : Window
             AtualizarStatus();
             await Salvar("6-analisado");
 
+            // Mesmo vídeo como se o YouTube informasse os dados da música (canal Tópico, por exemplo).
+            DefinirNome(Metadados.Resolver(new DadosMusica("x", "x", Faixa: "Never Gonna Give You Up",
+                Artistas: "Rick Astley", Album: "Whenever You Need Somebody", Ano: 1987)));
+            await Salvar("6b-oficial");
+            _nomeEditado = true;
+            DefinirNome(new NomeMusica("Rick Astley", "Never Gonna Give You Up (Ao Vivo)", null, null, OrigemNome.Editado));
+            await Salvar("6c-editado");
+
             var popup = (System.Windows.Controls.Primitives.Popup)SeletorFormato.Template.FindName("PART_Popup", SeletorFormato);
             SeletorFormato.IsDropDownOpen = true;
             await Task.Delay(400);
@@ -1241,6 +1717,43 @@ public partial class MainWindow : Window
             AtualizarBotao();
             AtualizarStatus();
             await Salvar("13-erro");
+
+            // Playlist (JSON no formato do --flat-playlist), com uma faixa privada.
+            _avisoResultado = null;
+            _link = new LinkYouTube("dQw4w9WgXcQ", "PLcapturasfaixa");
+            ZerarTudo();
+            MostrarModoLista(true);
+            var exemplo = Playlists.Interpretar(JsonPlaylistDeExemplo, "PLcapturasfaixa")!;
+            MostrarLista(exemplo);
+            await CarregarCapaDaListaAsync(exemplo, CancellationToken.None);
+            AtualizarSelecao();
+            AtualizarStatus();
+            await Salvar("14-playlist");
+
+            _faixas[2].Selecionada = false;
+            AtualizarSelecao();
+            AtualizarStatus();
+            await Salvar("15-playlist-desmarcada");
+            _faixas[2].Selecionada = true;
+
+            _baixando = true;
+            _opcaoEmAndamento = OpcaoAtual;
+            AtualizarSelecao();
+            _faixas[0].Estado = EstadoFaixa.Pronta;
+            _faixas[0].Nome = new NomeMusica("Rick Astley", "Never Gonna Give You Up", null, null, OrigemNome.Oficial);
+            _faixas[2].Estado = EstadoFaixa.Falhou;
+            _faixas[2].Detalhe = "Vídeo com restrição de idade. O YouTube só libera com login.";
+            _faixas[3].Estado = EstadoFaixa.Baixando;
+            MostrarProgressoLista(_faixas[3], 2, 6, new Progresso(Fase.Baixando, 0.48));
+            await Salvar("16-playlist-baixando");
+
+            _baixando = false;
+            foreach (var f in _faixas.Where(f => f.Item.Disponivel && f.Estado != EstadoFaixa.Falhou))
+                f.Estado = EstadoFaixa.Pronta;
+            _avisoResultado = new Aviso("5 de 6 salvas. 1 falhou: passe o mouse na faixa para ver o motivo.", Tom.Erro, "Abrir pasta");
+            AtualizarSelecao();
+            AtualizarStatus();
+            await Salvar("17-playlist-concluida");
         }
         catch (Exception erro)
         {

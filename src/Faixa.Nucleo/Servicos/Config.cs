@@ -58,24 +58,24 @@ public sealed class Config
     ];
 
     /// <summary>
-    /// Nome curto para mostrar na tela: "Músicas", "Downloads › Músicas", ou o nome da própria pasta.
+    /// Nome curto para mostrar na tela: "Músicas", "Downloads › Músicas", "Downloads › Músicas › Playlist",
+    /// ou só o nome da própria pasta quando ela não fica perto de uma pasta conhecida do Windows.
     /// </summary>
     public static string NomeAmigavel(string pasta)
     {
         try
         {
             var completo = Normalizar(pasta);
-            var pai = Path.GetDirectoryName(completo);
-            var nome = Path.GetFileName(completo);
-
-            foreach (var (caminho, rotulo) in Conhecidas)
+            var conhecidas = Conhecidas.Select(c => (Caminho: Normalizar(c.Caminho()), c.Nome)).ToList();
+            var abaixo = new List<string>();
+            for (var atual = completo; atual is not null && abaixo.Count <= 2; atual = Path.GetDirectoryName(atual))
             {
-                var conhecido = Normalizar(caminho());
-                if (Igual(completo, conhecido))
-                    return rotulo;
-                if (pai is not null && Igual(pai, conhecido))
-                    return $"{rotulo} › {nome}";
+                var conhecida = conhecidas.FirstOrDefault(c => Igual(c.Caminho, atual));
+                if (conhecida.Nome is not null)
+                    return string.Join(" › ", abaixo.Prepend(conhecida.Nome));
+                abaixo.Insert(0, Path.GetFileName(atual));
             }
+            var nome = Path.GetFileName(completo);
             return string.IsNullOrEmpty(nome) ? completo : nome;
         }
         catch

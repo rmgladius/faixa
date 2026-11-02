@@ -266,6 +266,156 @@
             </Setter>
         </Style>
 
+        <!-- Nome da música/artista: parece texto, vira campo ao passar o mouse ou clicar -->
+        <Style x:Key="CampoNome" TargetType="TextBox">
+            <Setter Property="Foreground" Value="{StaticResource Texto}" />
+            <Setter Property="CaretBrush" Value="{StaticResource Destaque}" />
+            <Setter Property="SelectionBrush" Value="{StaticResource Destaque}" />
+            <Setter Property="SelectionOpacity" Value="0.35" />
+            <Setter Property="TextAlignment" Value="Center" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="AcceptsReturn" Value="False" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border x:Name="Moldura" Background="Transparent" BorderBrush="Transparent" BorderThickness="1"
+                                CornerRadius="8" Padding="6,0">
+                            <ScrollViewer x:Name="PART_ContentHost" Focusable="False" VerticalAlignment="Center"
+                                          HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Hidden" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <MultiTrigger>
+                                <MultiTrigger.Conditions>
+                                    <Condition Property="IsMouseOver" Value="True" />
+                                    <Condition Property="IsReadOnly" Value="False" />
+                                </MultiTrigger.Conditions>
+                                <Setter TargetName="Moldura" Property="Background" Value="{StaticResource Superficie2}" />
+                            </MultiTrigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Moldura" Property="Background" Value="{StaticResource Superficie2}" />
+                                <Setter TargetName="Moldura" Property="BorderBrush" Value="{StaticResource Destaque}" />
+                            </Trigger>
+                            <Trigger Property="IsReadOnly" Value="True">
+                                <Setter Property="Cursor" Value="Arrow" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Caixa de marcar -->
+        <Style x:Key="Marcador" TargetType="CheckBox">
+            <Setter Property="Foreground" Value="{StaticResource TextoSuave}" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="CheckBox">
+                        <StackPanel Orientation="Horizontal" Background="Transparent">
+                            <Border x:Name="Caixa" Width="18" Height="18" CornerRadius="5" BorderThickness="1.5"
+                                    BorderBrush="{StaticResource BordaForte}" Background="Transparent" VerticalAlignment="Center">
+                                <TextBlock x:Name="Marca" Text="&#xE73E;" FontFamily="{StaticResource Icones}" FontSize="11"
+                                           Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Hidden" />
+                            </Border>
+                            <ContentPresenter Margin="8,0,0,0" VerticalAlignment="Center" />
+                        </StackPanel>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Caixa" Property="BorderBrush" Value="{StaticResource TextoSuave}" />
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Caixa" Property="Background" Value="{StaticResource Destaque}" />
+                                <Setter TargetName="Caixa" Property="BorderBrush" Value="{StaticResource Destaque}" />
+                                <Setter TargetName="Marca" Property="Visibility" Value="Visible" />
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="{x:Null}">
+                                <Setter TargetName="Caixa" Property="BorderBrush" Value="{StaticResource Destaque}" />
+                                <Setter TargetName="Marca" Property="Text" Value="&#xE738;" />
+                                <Setter TargetName="Marca" Property="Foreground" Value="{StaticResource Destaque}" />
+                                <Setter TargetName="Marca" Property="Visibility" Value="Visible" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.4" />
+                                <Setter Property="Cursor" Value="Arrow" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Barra de rolagem fina e escura -->
+        <ControlTemplate x:Key="RolagemVertical" TargetType="ScrollBar">
+            <Track x:Name="PART_Track" IsDirectionReversed="True">
+                <Track.Thumb>
+                    <Thumb>
+                        <Thumb.Template>
+                            <ControlTemplate TargetType="Thumb">
+                                <Border CornerRadius="3" Background="{StaticResource BordaForte}" Margin="2,0" />
+                            </ControlTemplate>
+                        </Thumb.Template>
+                    </Thumb>
+                </Track.Thumb>
+            </Track>
+        </ControlTemplate>
+        <ControlTemplate x:Key="RolagemHorizontal" TargetType="ScrollBar">
+            <Track x:Name="PART_Track">
+                <Track.Thumb>
+                    <Thumb>
+                        <Thumb.Template>
+                            <ControlTemplate TargetType="Thumb">
+                                <Border CornerRadius="3" Background="{StaticResource BordaForte}" Margin="0,2" />
+                            </ControlTemplate>
+                        </Thumb.Template>
+                    </Thumb>
+                </Track.Thumb>
+            </Track>
+        </ControlTemplate>
+        <Style TargetType="ScrollBar">
+            <Setter Property="Width" Value="10" />
+            <Setter Property="MinWidth" Value="10" />
+            <Setter Property="Template" Value="{StaticResource RolagemVertical}" />
+            <Style.Triggers>
+                <Trigger Property="Orientation" Value="Horizontal">
+                    <Setter Property="Width" Value="Auto" />
+                    <Setter Property="MinWidth" Value="0" />
+                    <Setter Property="Height" Value="10" />
+                    <Setter Property="Template" Value="{StaticResource RolagemHorizontal}" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- Lista de faixas da playlist -->
+        <Style x:Key="ListaLimpa" TargetType="ListBox">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Foreground" Value="{StaticResource Texto}" />
+            <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
+            <Setter Property="VirtualizingPanel.IsVirtualizing" Value="True" />
+            <Setter Property="VirtualizingPanel.ScrollUnit" Value="Pixel" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        </Style>
+
+        <Style x:Key="ItemFaixa" TargetType="ListBoxItem">
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border x:Name="Fundo" Background="Transparent" CornerRadius="8" Padding="6,0,4,0">
+                            <ContentPresenter />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Fundo" Property="Background" Value="{StaticResource Superficie2}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <Style TargetType="ToolTip">
             <Setter Property="Background" Value="{StaticResource Superficie2}" />
             <Setter Property="Foreground" Value="{StaticResource Texto}" />

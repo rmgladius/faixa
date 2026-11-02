@@ -44,4 +44,24 @@ internal static class ExemplosYtDlp
           {"format_id": "137", "vcodec": "avc1", "acodec": "none", "tbr": 4400.0}
         ]}
         """;
+
+    /// <summary>Saída de --flat-playlist -J: uma faixa normal, uma privada e uma apagada.</summary>
+    public const string Playlist = """
+        {"_type": "playlist", "id": "PLabcdefghijkl", "title": "Clássicos dos 80", "uploader": "Fulano", "channel": "Fulano",
+         "entries": [
+          {"_type": "url", "id": "dQw4w9WgXcQ", "title": "Rick Astley - Never Gonna Give You Up (Official Video)", "duration": 213.0, "channel": "Rick Astley", "uploader": "Rick Astley"},
+          {"_type": "url", "id": "xxxxxxxxxx1", "title": "[Private video]", "duration": null, "channel": null},
+          {"_type": "url", "id": "fJ9rUzIMcZQ", "title": "Queen – Bohemian Rhapsody (Official Video Remastered)", "duration": 359.0, "channel": "Queen Official", "uploader": "Queen Official"},
+          {"_type": "url", "id": "xxxxxxxxxx2", "title": "[Deleted video]", "duration": null}
+        ]}
+        """;
+
+    /// <summary>Álbum do YouTube Music: título "Album - ...", faixas de um canal "Tópico".</summary>
+    public const string Album = """
+        {"_type": "playlist", "id": "OLAK5uy_abcdefghijklmnop", "title": "Album - Getz/Gilberto", "uploader": "Stan Getz - Topic",
+         "entries": [
+          {"_type": "url", "id": "aaaaaaaaaa1", "title": "The Girl from Ipanema", "duration": 324.0, "channel": "Stan Getz - Topic"},
+          {"_type": "url", "id": "aaaaaaaaaa2", "title": "Doralice", "duration": 166.0, "channel": "Stan Getz - Topic"}
+        ]}
+        """;
 }

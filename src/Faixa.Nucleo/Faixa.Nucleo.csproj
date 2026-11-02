@@ -10,6 +10,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- Grava artista, título, álbum e número da faixa no MP3/M4A/Opus (LGPL). -->
+    <PackageReference Include="TagLibSharp" Version="2.3.0" />
+  </ItemGroup>
+
+  <ItemGroup>
     <InternalsVisibleTo Include="Faixa.Testes" />
   </ItemGroup>
 

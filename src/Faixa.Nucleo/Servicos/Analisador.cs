@@ -17,7 +17,8 @@ public sealed record FormatoFonte(string Id, string Codec, double Kbps, int? Hz,
 /// <summary>O que o YouTube tem de áudio para um vídeo.</summary>
 /// <param name="Melhor">O de maior taxa no idioma original; é o que o Faixa baixa para converter.</param>
 /// <param name="Originais">O melhor de cada codec que dá para salvar sem conversão (Opus e AAC).</param>
-public sealed record InfoAudio(double? Duracao, FormatoFonte Melhor, IReadOnlyList<FormatoFonte> Originais);
+/// <param name="Dados">Título, canal e, quando o YouTube informa, artista, faixa e álbum oficiais.</param>
+public sealed record InfoAudio(double? Duracao, FormatoFonte Melhor, IReadOnlyList<FormatoFonte> Originais, DadosMusica? Dados = null);
 
 /// <summary>
 /// Pergunta ao yt-dlp quais formatos de áudio existem (-J, sem baixar nada) e escolhe o melhor
@@ -108,7 +109,28 @@ public static class Analisador
             .Select(g => g.First())
             .ToList();
 
-        return new InfoAudio(Numero(raiz, "duration"), doIdioma[0], originais);
+        return new InfoAudio(Numero(raiz, "duration"), doIdioma[0], originais, LerDados(raiz));
+    }
+
+    /// <summary>Campos de música do yt-dlp (-J ou o JSON do --print do download).</summary>
+    public static DadosMusica LerDados(JsonElement e)
+    {
+        string? artistas = null;
+        if (e.TryGetProperty("artists", out var lista) && lista.ValueKind == JsonValueKind.Array)
+            artistas = string.Join(", ", lista.EnumerateArray()
+                .Where(a => a.ValueKind == JsonValueKind.String)
+                .Select(a => a.GetString()!.Trim())
+                .Where(a => a.Length > 0));
+        if (string.IsNullOrWhiteSpace(artistas))
+            artistas = Texto(e, "artist");
+
+        return new DadosMusica(
+            Texto(e, "title") ?? "",
+            Texto(e, "channel") ?? Texto(e, "uploader") ?? "",
+            Texto(e, "track"),
+            artistas,
+            Texto(e, "album"),
+            Numero(e, "release_year") is double ano ? (int)ano : null);
     }
 
     private static int PesoDoCodec(string codec) => codec switch
@@ -140,10 +162,10 @@ public static class Analisador
         _ => codec.ToUpperInvariant(),
     };
 
-    private static string? Texto(JsonElement e, string nome) =>
+    internal static string? Texto(JsonElement e, string nome) =>
         e.TryGetProperty(nome, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
 
-    private static double? Numero(JsonElement e, string nome) =>
+    internal static double? Numero(JsonElement e, string nome) =>
         e.TryGetProperty(nome, out var v) && v.ValueKind == JsonValueKind.Number ? v.GetDouble() : null;
 
     private static bool Verdadeiro(JsonElement e, string nome) =>
