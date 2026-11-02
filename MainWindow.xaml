@@ -1,0 +1,213 @@
+<Window x:Class="Faixa.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Faixa"
+        Width="440" SizeToContent="Height" ResizeMode="CanMinimize"
+        WindowStartupLocation="CenterScreen"
+        Background="{StaticResource Fundo}" Foreground="{StaticResource Texto}"
+        FontFamily="{StaticResource Fonte}" FontSize="14"
+        Icon="Assets/faixa.ico" AllowDrop="True"
+        UseLayoutRounding="True" SnapsToDevicePixels="True">
+
+    <Window.TaskbarItemInfo>
+        <TaskbarItemInfo x:Name="Tarefa" />
+    </Window.TaskbarItemInfo>
+
+    <Grid x:Name="Raiz" Background="{StaticResource Fundo}">
+        <Grid Margin="22,20,22,18">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <!-- Cabeçalho -->
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <Image Source="Assets/faixa.png" Width="38" Height="38"
+                       RenderOptions.BitmapScalingMode="HighQuality" />
+                <StackPanel Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center">
+                    <TextBlock Text="Faixa" FontFamily="{StaticResource FonteTitulo}" FontSize="20" FontWeight="SemiBold" />
+                    <TextBlock Text="Músicas do YouTube" FontSize="12" Foreground="{StaticResource TextoSuave}" Margin="0,1,0,0" />
+                </StackPanel>
+            </Grid>
+
+            <!-- Link -->
+            <Border Grid.Row="1" Style="{StaticResource MolduraCampo}" Height="50" Margin="0,20,0,0">
+                <Grid Margin="15,0,6,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="&#xE71B;" FontFamily="{StaticResource Icones}" FontSize="16"
+                               Foreground="{StaticResource TextoSuave}" VerticalAlignment="Center" />
+                    <Grid Grid.Column="1" Margin="11,0,6,0">
+                        <TextBlock x:Name="Dica" Text="Cole aqui o link do YouTube" Foreground="{StaticResource TextoApagado}"
+                                   VerticalAlignment="Center" IsHitTestVisible="False" />
+                        <TextBox x:Name="CampoLink" Style="{StaticResource CampoLimpo}"
+                                 TextChanged="CampoLink_TextChanged" KeyDown="CampoLink_KeyDown" />
+                    </Grid>
+                    <Button x:Name="BotaoColar" Grid.Column="2" Style="{StaticResource BotaoFantasma}"
+                            Click="Colar_Click" ToolTip="Colar o link copiado (Ctrl+V)">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="&#xE77F;" FontFamily="{StaticResource Icones}" FontSize="14" VerticalAlignment="Center" />
+                            <TextBlock Text="Colar" Margin="7,0,0,0" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                    <Button x:Name="BotaoLimpar" Grid.Column="2" Style="{StaticResource BotaoFantasma}"
+                            Click="Limpar_Click" ToolTip="Limpar" Visibility="Collapsed" Padding="9,7">
+                        <TextBlock Text="&#xE711;" FontFamily="{StaticResource Icones}" FontSize="12" />
+                    </Button>
+                </Grid>
+            </Border>
+
+            <!-- Capa e nome -->
+            <Border Grid.Row="2" Background="{StaticResource Superficie}" BorderBrush="{StaticResource Borda}"
+                    BorderThickness="1" CornerRadius="16" Padding="20,20,20,16" Margin="0,14,0,0">
+                <StackPanel>
+                    <Grid Width="212" Height="212" HorizontalAlignment="Center">
+                        <Grid x:Name="CapaVazia">
+                            <Rectangle RadiusX="12" RadiusY="12" Fill="{StaticResource Superficie2}"
+                                       Stroke="{StaticResource BordaForte}" StrokeThickness="1.5" StrokeDashArray="5 4" />
+                            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                                <TextBlock x:Name="CapaVaziaIcone" Text="&#xEC4F;" FontFamily="{StaticResource Icones}" FontSize="40"
+                                           Foreground="{StaticResource TextoApagado}" HorizontalAlignment="Center" />
+                                <TextBlock x:Name="CapaVaziaTexto" Text="A capa aparece aqui" FontSize="12" Margin="0,12,0,0"
+                                           Foreground="{StaticResource TextoApagado}" HorizontalAlignment="Center" />
+                            </StackPanel>
+                        </Grid>
+                        <Border x:Name="Capa" CornerRadius="12" Opacity="0" RenderTransformOrigin="0.5,0.5">
+                            <Border.RenderTransform>
+                                <ScaleTransform x:Name="CapaEscala" />
+                            </Border.RenderTransform>
+                            <Border.Effect>
+                                <DropShadowEffect BlurRadius="28" ShadowDepth="8" Direction="270" Opacity="0.5" Color="Black" />
+                            </Border.Effect>
+                        </Border>
+                    </Grid>
+
+                    <Grid Height="44" Margin="0,16,0,0">
+                        <TextBlock x:Name="Titulo" TextAlignment="Center" VerticalAlignment="Center"
+                                   FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap" TextTrimming="CharacterEllipsis"
+                                   LineHeight="22" LineStackingStrategy="BlockLineHeight" MaxHeight="44"
+                                   Text="Nenhuma música ainda" Foreground="{StaticResource TextoApagado}" />
+                    </Grid>
+                    <TextBlock x:Name="Canal" TextAlignment="Center" FontSize="13" Height="18" Margin="0,3,0,0"
+                               Foreground="{StaticResource TextoSuave}" TextTrimming="CharacterEllipsis" />
+
+                    <!-- Qualidade real do áudio no YouTube -->
+                    <Border x:Name="Fonte" Height="28" Margin="0,14,0,0" HorizontalAlignment="Center"
+                            Background="{StaticResource Superficie2}" CornerRadius="14" Padding="12,0" Visibility="Hidden">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock x:Name="FonteIcone" Text="&#xE8D6;" FontFamily="{StaticResource Icones}" FontSize="12"
+                                       Foreground="{StaticResource TextoSuave}" VerticalAlignment="Center" Margin="0,1,8,0" />
+                            <TextBlock x:Name="FonteTexto" FontSize="12" Foreground="{StaticResource TextoSuave}" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Border>
+
+            <!-- Formato e Baixar -->
+            <Grid Grid.Row="3" Margin="0,16,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="178" />
+                    <ColumnDefinition Width="10" />
+                    <ColumnDefinition />
+                </Grid.ColumnDefinitions>
+                <ComboBox x:Name="SeletorFormato" Style="{StaticResource Seletor}"
+                          ItemContainerStyle="{StaticResource ItemSeletor}"
+                          SelectionChanged="Formato_SelectionChanged" ToolTip="Formato do arquivo">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate>
+                            <Grid Width="300">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="{Binding Titulo}" FontSize="13" FontWeight="SemiBold" />
+                                    <TextBlock Text="{Binding Detalhe}" FontSize="11.5" Margin="0,2,0,0"
+                                               Foreground="{StaticResource TextoSuave}" TextTrimming="CharacterEllipsis" />
+                                </StackPanel>
+                                <TextBlock Grid.Column="1" Text="{Binding Tamanho}" FontSize="11.5" Margin="12,1,0,0"
+                                           Foreground="{StaticResource TextoSuave}" />
+                            </Grid>
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
+                <Button x:Name="BotaoBaixar" Grid.Column="2" Style="{StaticResource BotaoPrincipal}"
+                        Click="Baixar_Click" IsEnabled="False">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock x:Name="BotaoIcone" Text="&#xE896;" FontFamily="{StaticResource Icones}" FontSize="16"
+                                   VerticalAlignment="Center" Margin="0,1,10,0" />
+                        <TextBlock x:Name="BotaoTexto" Text="Baixar" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+            </Grid>
+
+            <!-- Progresso e mensagens -->
+            <Grid Grid.Row="4" Margin="0,14,0,0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="6" />
+                    <RowDefinition Height="46" />
+                </Grid.RowDefinitions>
+                <Border x:Name="Trilho" CornerRadius="3"
+                        Background="{StaticResource Superficie2}" ClipToBounds="True" Visibility="Hidden">
+                    <Border x:Name="Barra" HorizontalAlignment="Left" Width="0" CornerRadius="3"
+                            Background="{StaticResource DestaqueGradiente}">
+                        <Border.RenderTransform>
+                            <TranslateTransform x:Name="BarraDesloc" />
+                        </Border.RenderTransform>
+                    </Border>
+                </Border>
+                <Grid Grid.Row="1" Margin="0,9,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <DockPanel VerticalAlignment="Top">
+                        <TextBlock x:Name="StatusIcone" DockPanel.Dock="Left" FontFamily="{StaticResource Icones}" FontSize="13"
+                                   Margin="0,2,8,0" VerticalAlignment="Top" Visibility="Collapsed" />
+                        <TextBlock x:Name="StatusTexto" FontSize="13" Foreground="{StaticResource TextoSuave}"
+                                   TextWrapping="Wrap" TextTrimming="CharacterEllipsis" MaxHeight="36" LineHeight="17"
+                                   LineStackingStrategy="BlockLineHeight" />
+                    </DockPanel>
+                    <TextBlock x:Name="StatusPercentual" Grid.Column="1" FontSize="13" FontWeight="SemiBold"
+                               Foreground="{StaticResource TextoSuave}" VerticalAlignment="Top" Margin="12,0,0,0" />
+                    <Button x:Name="BotaoAcao" Grid.Column="1" Style="{StaticResource BotaoLink}" Margin="14,0,0,0"
+                            VerticalAlignment="Top" Visibility="Collapsed" Click="Acao_Click" />
+                </Grid>
+            </Grid>
+
+            <!-- Pasta de destino -->
+            <Border Grid.Row="5" Margin="0,12,0,0" BorderBrush="{StaticResource Borda}" BorderThickness="0,1,0,0" Padding="0,14,0,0">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Border Width="34" Height="34" CornerRadius="9" Background="{StaticResource Superficie2}">
+                        <TextBlock Text="&#xE8B7;" FontFamily="{StaticResource Icones}" FontSize="15"
+                                   Foreground="{StaticResource TextoSuave}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <StackPanel x:Name="PainelPasta" Grid.Column="1" Margin="11,0,8,0" VerticalAlignment="Center"
+                                Background="Transparent" Cursor="Hand" MouseLeftButtonUp="Pasta_Click">
+                        <TextBlock Text="Salvar em" FontSize="11" Foreground="{StaticResource TextoApagado}" />
+                        <TextBlock x:Name="PastaNome" FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Margin="0,1,0,0" />
+                    </StackPanel>
+                    <Button x:Name="BotaoAlterar" Grid.Column="2" Style="{StaticResource BotaoFantasma}"
+                            Content="Alterar" Click="Alterar_Click" ToolTip="Escolher outra pasta" />
+                </Grid>
+            </Border>
+        </Grid>
+    </Grid>
+</Window>
