@@ -1,118 +1,78 @@
-# Faixa
+<p align="center">
+  <img src="docs/imagens/capa.png" alt="Faixa: música do YouTube sem 320 kbps de mentira" width="100%">
+</p>
 
-Baixa músicas e playlists do YouTube em MP3 (até 320 kbps) ou no formato original. Cola o link,
-a capa, o nome limpo e a qualidade real do áudio aparecem, escolhe o formato e clica em **Baixar**.
+<p align="center">
+  <a href="https://github.com/rmgladius/faixa/releases/latest"><b>Baixar para Windows</b></a>
+  &nbsp;·&nbsp; Windows 10 e 11, 64 bits &nbsp;·&nbsp; não precisa instalar
+</p>
 
-- Salva em **Downloads › Músicas** por padrão (dá para trocar em "Alterar"; a escolha fica gravada).
-- Mostra a qualidade real do áudio no YouTube antes de baixar ("No YouTube: Opus · 130 kbps · 48 kHz").
-- Formato à escolha: MP3 320, 256, 192 ou 128 kbps, ou o original sem conversão (.opus ou .m4a),
-  com o tamanho estimado de cada um. A escolha fica gravada.
-- Embaixo do botão, uma frase diz o que a escolha faz com o áudio (ex.: MP3 320 a partir de
-  Opus 130 não fica melhor que a fonte, só perde menos na conversão).
-- Depois de baixar, informa o formato que o yt-dlp realmente baixou ("Opus 130 kbps → MP3 320 kbps").
-- O arquivo sai como `Artista - Música.mp3`, com artista, título, álbum, ano e a capa do vídeo
-  cortada em quadrado (veja "Nomes e informações da música").
-- Playlists e álbuns: lista com caixas de marcar e fila com o andamento de cada faixa.
-- Aceita links `youtube.com/watch`, `youtu.be`, `music.youtube.com`, `shorts`, `live`, `embed`,
-  `playlist?list=` e álbuns do YouTube Music.
-- Avisa quando há versão nova e se atualiza com um clique.
-- Atalhos: Ctrl+V em qualquer lugar da janela cola o link; Enter baixa; dá para arrastar o link do navegador.
+Faixa é um app de Windows para baixar músicas e playlists do YouTube. Antes do download ele mostra
+a qualidade real do áudio, separa artista e música do título do vídeo e deixa escolher entre MP3 e
+o arquivo original, sem conversão.
 
-## Como funciona
+<p align="center">
+  <img src="docs/imagens/demo.webp" alt="Colando um link: aparecem a capa, o nome e a qualidade do áudio; a música é baixada em MP3. Depois, uma playlist inteira." width="420">
+</p>
 
-O Faixa é só a interface. Quem faz o trabalho são três programas que ele baixa sozinho na
-primeira vez que abre (cerca de 157 MB, em `%LOCALAPPDATA%\Faixa\bin`):
+## Sem 320 kbps de mentira
 
-| Componente | Para quê |
-|---|---|
-| [yt-dlp](https://github.com/yt-dlp/yt-dlp) | Busca o melhor áudio do vídeo |
-| [FFmpeg](https://github.com/yt-dlp/FFmpeg-Builds) (build do yt-dlp) | Converte para MP3 320 kbps e grava capa e tags |
-| [Deno](https://github.com/denoland/deno) | O yt-dlp precisa dele desde a versão 2025.11 para o YouTube |
+O YouTube guarda o áudio em Opus, em geral entre 130 e 160 kbps. Transformar isso em "MP3 320 kbps"
+deixa o arquivo maior, não o som melhor. O Faixa lê os formatos do vídeo antes de baixar, mostra o
+número verdadeiro e diz o que cada opção faz com o áudio. Quem quer o máximo leva o original.
 
-O yt-dlp se atualiza a cada dois dias (`yt-dlp -U`). Se um download falha por motivo
-desconhecido, o Faixa atualiza e tenta mais uma vez antes de mostrar o erro.
+<p align="center">
+  <img src="docs/imagens/teto.svg" alt="Gráfico: fonte de 141 kbps no YouTube; o original mantém 141; o MP3 320 cresce sem ganhar detalhe; o MP3 128 perde um pouco." width="100%">
+</p>
 
-O comando que roda por baixo é, em resumo:
+## Nome de música, não de vídeo
 
-```
-yt-dlp -J <link>                                    (análise: lista os formatos, não baixa)
-yt-dlp -f 251/bestaudio/best -x --audio-format mp3 --audio-quality 320K
-       --embed-metadata --embed-thumbnail --convert-thumbnails jpg
-       --no-playlist -o "%(title)s.%(ext)s" <link>   (MP3; no original: --audio-format best)
-yt-dlp --flat-playlist -J <playlist>                (playlist: só a lista de faixas)
-```
+<p align="center">
+  <img src="docs/imagens/nomes.svg" alt="Títulos do YouTube e os nomes de arquivo que o Faixa gera." width="100%">
+</p>
 
-Como o "melhor áudio" é escolhido: o Faixa roda `yt-dlp -J` (só lê, não baixa), descarta
-formatos com vídeo, DRC (volume comprimido), DRM ou defeito, fica com o idioma original e ordena
-como o yt-dlp: faixa de qualidade do YouTube, codec (Opus > Vorbis > AAC) e kbps. O download pede
-esse formato pelo ID, então o que a tela mostra é o que é baixado.
+Quando o YouTube informa artista e faixa (YouTube Music e vídeos com a seção "Música"), esses dados
+vêm primeiro. Sem eles, o nome sai do título e do canal. A tela diz de onde veio cada nome e deixa
+corrigir antes de baixar. Artista, título, álbum e ano também vão para dentro do arquivo.
 
-Sobre os 320 kbps: o YouTube entrega o áudio em Opus (~130 a 160 kbps) ou AAC (128 kbps).
-O MP3 sai em 320 kbps fixos, que é a forma de perder o mínimo na conversão, mas não fica
-com mais qualidade que a original.
+## Telas
 
-## Acesso controlado a pastas
+<p align="center">
+  <img src="docs/imagens/telas.png" alt="Três telas: uma música com capa e qualidade, a lista de formatos com tamanho estimado e uma playlist sendo baixada." width="100%">
+</p>
 
-Com a proteção contra ransomware do Windows ligada, Documentos, Músicas, Imagens, Vídeos e
-Área de Trabalho só aceitam gravação de apps permitidos. Downloads fica de fora, por isso a
-pasta padrão é Downloads › Músicas e o Faixa nunca pede liberação.
+Playlists e álbuns abrem como lista: dá para desmarcar faixas, cada uma mostra o próprio andamento e
+uma falha não para a fila. Os arquivos vão para uma subpasta com o nome da playlist.
 
-O yt-dlp trabalha só em `%LOCALAPPDATA%\Faixa\temp`, e quem move o MP3 pronto para o destino
-é o próprio Faixa. Se a pessoa escolher uma pasta protegida, o Faixa avisa na hora ("Usar
-Downloads"); se a gravação for bloqueada, o MP3 fica guardado e o botão "Salvar em Downloads"
-o entrega sem baixar de novo. MP3 que tenha ficado pendente é entregue ao abrir o Faixa.
+## Por dentro
 
-## Arquivos
+<p align="center">
+  <img src="docs/imagens/por-dentro.svg" alt="Caminho de um download: link, prévia, análise, download e arquivo." width="100%">
+</p>
 
-- `%LOCALAPPDATA%\Programs\Faixa\Faixa.exe`: o programa instalado
-- `%LOCALAPPDATA%\Faixa\config.json`: pasta de destino e formato escolhidos
-- `%LOCALAPPDATA%\Faixa\ultimo-erro.txt`: saída do yt-dlp do último erro (botão "Detalhes")
+- O download pede ao yt-dlp o formato exato que a análise mostrou, então o número da tela é o do
+  arquivo. No fim, o próprio yt-dlp informa o que baixou, e é isso que aparece em "Salva em…".
+- "Original" nunca reconverte: o áudio é só copiado para `.opus` ou `.m4a`.
+- O yt-dlp grava numa pasta interna e o app entrega o arquivo. Assim a proteção contra ransomware
+  do Windows, que bloqueia programas novos em Músicas e Documentos, não atrapalha.
+- Atualiza sozinho pelo GitHub Releases, conferindo o SHA-256 antes de trocar o executável.
+- A lógica fica numa biblioteca separada da tela, com 120 testes. As imagens deste README saem do
+  próprio app: `Faixa.exe --demo` desenha cada quadro, com músicas e capas fictícias.
 
-## Projeto
+C# · WPF · .NET 10 · [yt-dlp](https://github.com/yt-dlp/yt-dlp) ·
+[FFmpeg](https://ffmpeg.org) · [Deno](https://deno.com) · [TagLib#](https://github.com/mono/taglib-sharp)
 
-```
-src/Faixa/          app WPF (tela)
-src/Faixa.Nucleo/   lógica: links, yt-dlp, formatos, nomes, tags, playlists, atualização
-tests/Faixa.Testes/ testes xUnit do núcleo
-distribuicao/       LEIA-ME que vai no zip para os amigos
-publicar.sh         gera e publica uma versão no GitHub Releases
-```
+## Rodar o código
 
-Precisa do .NET 10 SDK. Comandos a partir da raiz:
+Precisa do .NET 10 SDK.
 
 ```
 dotnet test Faixa.slnx -c Release
-dotnet publish src\Faixa\Faixa.csproj -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -p:DebugType=none -o publish
+dotnet run --project src/Faixa
 ```
 
-`Faixa.exe --capturas <pasta>` desenha cada estado da tela em PNG e fecha, sem baixar nada.
+Estrutura, decisões e como publicar uma versão: [docs/COMO-FUNCIONA.md](docs/COMO-FUNCIONA.md).
 
-## Nomes e informações da música
+---
 
-1. **Dados oficiais do YouTube**, quando existem: faixas do YouTube Music (canais "Tópico") e
-   vídeos em que o YouTube reconhece a música e mostra a seção "Música" na descrição.
-2. **Separados do título**: "Artista - Música", "Música - Artista" (quando o lado direito é o
-   canal) e 'Artista "Música"', sem "(Official Video)", "[4K]", "(Lyrics)", hashtags e afins.
-   "(Ao Vivo)", "(Remastered 2011)" e "feat." ficam, porque dizem qual versão é.
-3. **Canal como artista**, quando o título não tem separação ("RickAstleyVEVO" vira "Rick Astley").
-
-A tela diz qual dos três foi usado e deixa editar. O arquivo sai como `Artista - Música.mp3`, e
-artista, título, álbum, ano e número da faixa (em álbuns) vão para as tags (ID3v2.3, via TagLib#).
-
-## Playlists
-
-Links de playlist, álbum do YouTube Music (`OLAK5uy_…`, `browse/MPREb…`) e vídeo aberto dentro de
-uma playlist ("Playlist inteira" / "Só esta música"). Mixes automáticos (`list=RD…`) contam só como o
-vídeo. As faixas marcadas são baixadas uma por vez numa subpasta com o nome da playlist; álbuns
-ganham "01. " no nome e o número da faixa nas tags. Vídeos privados e apagados ficam desmarcados.
-
-## Atualização
-
-O Faixa consulta `api.github.com/repos/rmgladius/faixa/releases/latest` ao abrir. Se a versão for
-maior que a dele, aparece um botão no cabeçalho; ao clicar, ele baixa o asset `Faixa.exe`, confere
-o SHA-256 (campo `digest` do GitHub ou `Faixa.exe.sha256`), renomeia o .exe atual para `.old`,
-põe o novo no lugar e reabre. Se a pasta não deixar trocar, o .exe novo vai para Downloads.
-
-Para publicar: suba `<Version>` em `Directory.Build.props`, faça o commit e rode
-`./publicar.sh "- novidade"` no WSL. Para mandar o Faixa a alguém, o link é a página da última
-release; o `Faixa.zip` dela leva o .exe e o `LEIA-ME.txt` de `distribuicao/`.
+Feito por Rodrigo Dias. Use o Faixa para baixar o que você tem direito de baixar.

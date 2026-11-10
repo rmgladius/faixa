@@ -90,11 +90,14 @@ public partial class MainWindow : Window
     private ModoBarra _modoBarra = ModoBarra.Oculta;
     private double _fracaoBarra;
 
+    private readonly bool _demo;
+
     private bool Capturando => _pastaCapturas is not null;
 
-    public MainWindow(string? pastaCapturas = null)
+    public MainWindow(string? pastaCapturas = null, bool demo = false)
     {
         _pastaCapturas = pastaCapturas;
+        _demo = demo;
         InitializeComponent();
 
         _espera = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
@@ -133,7 +136,7 @@ public partial class MainWindow : Window
 
         if (Capturando)
         {
-            await GerarCapturasAsync();
+            await (_demo ? GerarDemoAsync() : GerarCapturasAsync());
             return;
         }
 

@@ -23,8 +23,10 @@ public partial class App : Application
             // Ainda em uso; fica para a próxima.
         }
 
-        var pastaCapturas = e.Args.Length >= 2 && e.Args[0] == "--capturas" ? e.Args[1] : null;
-        var janela = new MainWindow(pastaCapturas);
+        // --capturas <pasta>: cada estado da tela em PNG. --demo <pasta>: quadros da animação do README.
+        var modo = e.Args.Length >= 2 ? e.Args[0] : null;
+        var pasta = modo is "--capturas" or "--demo" ? e.Args[1] : null;
+        var janela = new MainWindow(pasta, demo: modo == "--demo");
         MainWindow = janela;
         janela.Show();
     }
