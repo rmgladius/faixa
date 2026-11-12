@@ -11,8 +11,11 @@ public static class Programa
     /// <summary>Nome do .exe até a versão 1.1. As releases publicam uma cópia com ele para quem ainda não atualizou.</summary>
     public const string ExecutavelAntigo = "Faixa.exe";
 
-    /// <summary>Repositório (dono/nome) do código e das versões.</summary>
-    public const string Repositorio = "rmgladius/faixa";
+    /// <summary>
+    /// Repositório (dono/nome) do código e das versões. Até a 1.1 era rmgladius/faixa; o GitHub
+    /// redireciona o endereço antigo, e é por ele que a 1.1 continua achando as versões novas.
+    /// </summary>
+    public const string Repositorio = "rmgladius/rd-track-downloader";
 
     public const string UrlRepositorio = "https://github.com/" + Repositorio;
 }

@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/rmgladius/faixa/releases/latest"><b>Baixar para Windows</b></a>
+  <a href="https://github.com/rmgladius/rd-track-downloader/releases/latest"><b>Baixar para Windows</b></a>
   &nbsp;·&nbsp; Windows 10 e 11, 64 bits &nbsp;·&nbsp; não precisa instalar
 </p>
 

@@ -12,7 +12,7 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 notas="${1:?Passe as novidades da versão entre aspas.}"
-repo="rmgladius/faixa"
+repo="rmgladius/rd-track-downloader"
 versao=$(grep -oP '(?<=<Version>)[^<]+' Directory.Build.props)
 tag="v$versao"
 win=$(wslpath -w "$PWD")

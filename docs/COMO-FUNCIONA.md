@@ -138,11 +138,12 @@ informa (playlists do Spotify).
 
 ## Atualização
 
-O app consulta `api.github.com/repos/rmgladius/faixa/releases/latest` ao abrir. Se a versão for
+O app consulta `api.github.com/repos/rmgladius/rd-track-downloader/releases/latest` ao abrir. Se a versão for
 maior que a dele, aparece um botão no cabeçalho; ao clicar, ele baixa o asset `RDTrackDownloader.exe`,
 confere o SHA-256 (campo `digest` do GitHub ou `RDTrackDownloader.exe.sha256`), renomeia o .exe atual
 para `.old`, põe o novo no lugar e reabre. Se a pasta não deixar trocar, o .exe novo vai para Downloads.
-Cada release leva também uma cópia como `Faixa.exe`, o nome que a versão 1.1 procura.
+Cada release leva também uma cópia como `Faixa.exe`, o nome que a versão 1.1 procura. A 1.1 consulta o
+endereço antigo, `rmgladius/faixa`, que o GitHub redireciona para o atual.
 
 Para publicar: suba `<Version>` em `Directory.Build.props`, faça o commit e rode
 `./publicar.sh "- novidade"` no WSL. Para mandar o programa a alguém, o link é a página da última

@@ -14,8 +14,8 @@ public static class Sobre
     public const string Email = "rmdiasvieira@icloud.com";
     public const string GitHub = "https://github.com/rmgladius";
     public const string GitHubTexto = "github.com/rmgladius";
-    public const string LinkedIn = "https://www.linkedin.com/in/rmdiasvieira/";
-    public const string LinkedInTexto = "linkedin.com/in/rmdiasvieira";
+    public const string Instagram = "https://www.instagram.com/rodrigodiasdj/";
+    public const string InstagramTexto = "@rodrigodiasdj";
     public const string Problemas = Programa.UrlRepositorio + "/issues";
 }
 
@@ -59,7 +59,7 @@ public partial class MainWindow
         CampoLink.Focus();
     }
 
-    /// <summary>GitHub, LinkedIn, código-fonte: o endereço vem no Tag do botão.</summary>
+    /// <summary>GitHub, Instagram, código-fonte: o endereço vem no Tag do botão.</summary>
     private void Endereco_Click(object sender, RoutedEventArgs e)
     {
         if (sender is FrameworkElement { Tag: string endereco })

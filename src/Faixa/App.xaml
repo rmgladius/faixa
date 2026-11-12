@@ -161,7 +161,7 @@
             </Setter>
         </Style>
 
-        <!-- Linha clicável do Sobre (e-mail, GitHub, LinkedIn): ícone, rótulo, valor e seta -->
+        <!-- Linha clicável do Sobre (e-mail, GitHub, Instagram): ícone, rótulo, valor e seta -->
         <Style x:Key="LinhaContato" TargetType="Button">
             <Setter Property="Foreground" Value="{StaticResource Texto}" />
             <Setter Property="HorizontalContentAlignment" Value="Stretch" />

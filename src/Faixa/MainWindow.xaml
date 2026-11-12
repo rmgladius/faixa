@@ -376,7 +376,7 @@
                                        Foreground="{StaticResource TextoApagado}" VerticalAlignment="Center" Margin="0,0,4,0" />
                         </Grid>
                     </Button>
-                    <Button Style="{StaticResource LinhaContato}" Click="Endereco_Click" Tag="{x:Static local:Sobre.LinkedIn}" ToolTip="Abrir no navegador">
+                    <Button Style="{StaticResource LinhaContato}" Click="Endereco_Click" Tag="{x:Static local:Sobre.Instagram}" ToolTip="Abrir no navegador">
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto" />
@@ -384,12 +384,17 @@
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
                             <Border Width="34" Height="34" CornerRadius="9" Background="{StaticResource Superficie2}">
-                                <TextBlock Text="in" FontFamily="Segoe UI" FontSize="15" FontWeight="Bold" Margin="0,-2,0,0"
-                                           Foreground="{StaticResource TextoSuave}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                <!-- Câmera do Instagram: moldura arredondada, lente e flash -->
+                                <Grid Width="16" Height="16">
+                                    <Rectangle RadiusX="4.6" RadiusY="4.6" Stroke="{StaticResource TextoSuave}" StrokeThickness="1.6" />
+                                    <Ellipse Width="7" Height="7" Stroke="{StaticResource TextoSuave}" StrokeThickness="1.6" />
+                                    <Ellipse Width="2" Height="2" Fill="{StaticResource TextoSuave}"
+                                             HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,2.6,2.6,0" />
+                                </Grid>
                             </Border>
                             <StackPanel Grid.Column="1" Margin="11,0,8,0" VerticalAlignment="Center">
-                                <TextBlock Text="LinkedIn" FontSize="11" Foreground="{StaticResource TextoApagado}" />
-                                <TextBlock Text="{x:Static local:Sobre.LinkedInTexto}" FontSize="13" FontWeight="SemiBold" Margin="0,1,0,0" TextTrimming="CharacterEllipsis" />
+                                <TextBlock Text="Instagram" FontSize="11" Foreground="{StaticResource TextoApagado}" />
+                                <TextBlock Text="{x:Static local:Sobre.InstagramTexto}" FontSize="13" FontWeight="SemiBold" Margin="0,1,0,0" TextTrimming="CharacterEllipsis" />
                             </StackPanel>
                             <TextBlock Grid.Column="2" Text="&#xE8A7;" FontFamily="{StaticResource Icones}" FontSize="12"
                                        Foreground="{StaticResource TextoApagado}" VerticalAlignment="Center" Margin="0,0,4,0" />
