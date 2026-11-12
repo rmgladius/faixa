@@ -4,9 +4,36 @@ using System.Text.Json;
 namespace Faixa.Servicos;
 
 /// <summary>Uma faixa da playlist, como o yt-dlp lista sem abrir cada vídeo.</summary>
-public sealed record ItemLista(int Numero, string Id, string Titulo, string Canal, double? Duracao, bool Disponivel);
+/// <param name="Id">ID do vídeo no YouTube (vazio nas outras plataformas).</param>
+/// <param name="Endereco">O que o yt-dlp baixa, quando não é um vídeo do YouTube (faixa do SoundCloud).</param>
+/// <param name="Catalogo">Música do Spotify ou do Deezer: o áudio é procurado no YouTube Music na hora de baixar.</param>
+/// <param name="Motivo">Por que não dá para baixar, quando <paramref name="Disponivel"/> é falso.</param>
+public sealed record ItemLista(
+    int Numero,
+    string Id,
+    string Titulo,
+    string Canal,
+    double? Duracao,
+    bool Disponivel,
+    string? Endereco = null,
+    FaixaCatalogo? Catalogo = null,
+    string? Motivo = null)
+{
+    public string Url => Endereco ?? YouTube.UrlDoVideo(Id);
+}
 
-public sealed record InfoLista(string Id, string Titulo, string Canal, bool EhAlbum, IReadOnlyList<ItemLista> Itens)
+/// <param name="Origem">De onde vem a lista. O áudio vem do YouTube, exceto no SoundCloud.</param>
+/// <param name="CapaUrl">Capa da lista; sem ela, a do primeiro vídeo do YouTube.</param>
+/// <param name="Cortada">O serviço mostrou só parte das faixas.</param>
+public sealed record InfoLista(
+    string Id,
+    string Titulo,
+    string Canal,
+    bool EhAlbum,
+    IReadOnlyList<ItemLista> Itens,
+    Plataforma Origem = Plataforma.YouTube,
+    string? CapaUrl = null,
+    bool Cortada = false)
 {
     public int Disponiveis => Itens.Count(i => i.Disponivel);
 
@@ -16,12 +43,15 @@ public sealed record InfoLista(string Id, string Titulo, string Canal, bool EhAl
 /// <summary>Lê o conteúdo de uma playlist ou álbum (--flat-playlist: só a lista, sem abrir cada vídeo).</summary>
 public static class Playlists
 {
-    public static async Task<InfoLista> ListarAsync(string listaId, CancellationToken ct)
+    public static Task<InfoLista> ListarAsync(string listaId, CancellationToken ct) =>
+        ListarAsync(YouTube.UrlDaLista(listaId), listaId, ct);
+
+    public static async Task<InfoLista> ListarAsync(string url, string listaId, CancellationToken ct)
     {
         using var proc = new Process
         {
             StartInfo = Componentes.ProcessoYtDlp(
-                [.. Componentes.ArgumentosBase, "--flat-playlist", "-J", "--", YouTube.UrlDaLista(listaId)]),
+                [.. Componentes.ArgumentosBase, "--flat-playlist", "-J", "--", url]),
         };
         proc.Start();
         var saida = proc.StandardOutput.ReadToEndAsync(CancellationToken.None);
@@ -62,6 +92,14 @@ public static class Playlists
         var itens = new List<ItemLista>();
         foreach (var e in entradas.EnumerateArray())
         {
+            // Outros sites (SoundCloud): a entrada traz o endereço e, às vezes, nem o título.
+            if (Analisador.Texto(e, "ie_key") is { } site && site != "Youtube" && Analisador.Texto(e, "url") is { } endereco)
+            {
+                itens.Add(new ItemLista(itens.Count + 1, "", Analisador.Texto(e, "title") ?? $"Faixa {itens.Count + 1}",
+                    Analisador.Texto(e, "uploader") ?? "", Analisador.Numero(e, "duration"), true, Endereco: endereco));
+                continue;
+            }
+
             var id = Analisador.Texto(e, "id") ?? "";
             var tituloItem = Analisador.Texto(e, "title") ?? "";
             var disponivel = YouTube.ExtrairId(YouTube.UrlDoVideo(id)) == id

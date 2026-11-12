@@ -1,0 +1,88 @@
+{
+ "id": 908622995,
+ "title": "En mode 60",
+ "link": "https://www.deezer.com/playlist/908622995",
+ "picture_xl": "https://cdn-images.dzcdn.net/images/playlist/4fd375a41c7779ed7deab64fb1194099/1000x1000-000000-80-0-0.jpg",
+ "nb_tracks": 50,
+ "tracklist": "https://api.deezer.com/playlist/908622995/tracks",
+ "creator": {
+  "id": 1687950,
+  "name": "Alexandre - Pop & Hits Editor",
+  "tracklist": "https://api.deezer.com/user/1687950/flow",
+  "type": "user"
+ },
+ "type": "playlist",
+ "tracks": {
+  "data": [
+   {
+    "id": 116348632,
+    "readable": true,
+    "title": "Hey Jude (Remastered 2015)",
+    "title_short": "Hey Jude",
+    "title_version": "(Remastered 2015)",
+    "isrc": "GBUM71505902",
+    "link": "https://www.deezer.com/track/116348632",
+    "duration": 429,
+    "artist": {
+     "id": 1,
+     "name": "The Beatles",
+     "type": "artist"
+    },
+    "album": {
+     "id": 12047956,
+     "title": "1 (Remastered 2015)",
+     "cover_xl": "https://cdn-images.dzcdn.net/images/cover/c65b3bd84e81056e060be144381c06c8/1000x1000-000000-80-0-0.jpg",
+     "cover_big": "https://cdn-images.dzcdn.net/images/cover/c65b3bd84e81056e060be144381c06c8/500x500-000000-80-0-0.jpg",
+     "type": "album"
+    },
+    "type": "track"
+   },
+   {
+    "id": 92551068,
+    "readable": true,
+    "title": "What a Wonderful World (Remastered)",
+    "title_short": "What a Wonderful World",
+    "title_version": "(Remastered)",
+    "isrc": "ES6601404373",
+    "link": "https://www.deezer.com/track/92551068",
+    "duration": 140,
+    "artist": {
+     "id": 2337,
+     "name": "Louis Armstrong",
+     "type": "artist"
+    },
+    "album": {
+     "id": 9392704,
+     "title": "Georgia on My Mind (Remastered)",
+     "cover_xl": "https://cdn-images.dzcdn.net/images/cover/9e92eafc4763ff46daa2e17b6df33717/1000x1000-000000-80-0-0.jpg",
+     "cover_big": "https://cdn-images.dzcdn.net/images/cover/9e92eafc4763ff46daa2e17b6df33717/500x500-000000-80-0-0.jpg",
+     "type": "album"
+    },
+    "type": "track"
+   },
+   {
+    "id": 366450991,
+    "readable": true,
+    "title": "Nights In White Satin",
+    "title_short": "Nights In White Satin",
+    "title_version": "",
+    "isrc": "GBA176700080",
+    "link": "https://www.deezer.com/track/366450991",
+    "duration": 265,
+    "artist": {
+     "id": 4212,
+     "name": "The Moody Blues",
+     "type": "artist"
+    },
+    "album": {
+     "id": 42219371,
+     "title": "Nights In White Satin",
+     "cover_xl": "https://cdn-images.dzcdn.net/images/cover/ab19dfe1340d810a1146a16f5230b3c6/1000x1000-000000-80-0-0.jpg",
+     "cover_big": "https://cdn-images.dzcdn.net/images/cover/ab19dfe1340d810a1146a16f5230b3c6/500x500-000000-80-0-0.jpg",
+     "type": "album"
+    },
+    "type": "track"
+   }
+  ]
+ }
+}

@@ -1,4 +1,4 @@
-"""Monta as imagens do README a partir dos quadros do `Faixa.exe --demo <pasta>`.
+"""Monta as imagens do README a partir dos quadros do `RDTrackDownloader.exe --demo <pasta>`.
 
 Uso: python3 docs/fonte/montar.py <pasta dos quadros> <docs/imagens>
 
@@ -23,6 +23,7 @@ TEXTO = (242, 244, 248)
 SUAVE = (154, 163, 178)
 DESTAQUE = (255, 106, 61)
 E = 2  # os quadros vêm em escala 2
+NOME = "RD Track Downloader"
 
 
 def fonte(nome, tam):
@@ -69,13 +70,13 @@ def com_popup(quadro):
 
 
 def barra_de_titulo(largura):
-    """Barra de título do Windows 11 na cor do Faixa (o app pinta a dele de #0F1115)."""
+    """Barra de título do Windows 11 na cor do app (ele pinta a dele de #0F1115)."""
     h = 32 * E
     barra = Image.new("RGBA", (largura, h), FUNDO + (255,))
     d = ImageDraw.Draw(barra)
     ico = Image.open(icone_png).convert("RGBA").resize((16 * E, 16 * E), Image.LANCZOS)
     barra.alpha_composite(ico, (12 * E, 8 * E))
-    d.text((38 * E, 16 * E), "Faixa", font=fonte("segoeui.ttf", 12 * E), fill=(200, 204, 212), anchor="lm")
+    d.text((38 * E, 16 * E), NOME, font=fonte("segoeui.ttf", 12 * E), fill=(200, 204, 212), anchor="lm")
     glifos = fonte("SegoeIcons.ttf", 10 * E)
     for i, (glifo, cor) in enumerate((("\uE8BB", (220, 222, 228)), ("\uE922", (90, 94, 102)), ("\uE921", (220, 222, 228)))):
         cx = largura - (23 + 46 * i) * E
@@ -173,7 +174,7 @@ for img, (x, y) in ((tras_escura, (898 * K, 92 * K)), (frente, (700 * K, 56 * K)
 d = ImageDraw.Draw(capa)
 ico = Image.open(icone_png).convert("RGBA").resize((60 * K, 60 * K), Image.LANCZOS)
 capa.alpha_composite(ico, (84 * K, 112 * K))
-d.text((158 * K, 142 * K), "Faixa", font=variavel(38 * K, 600), fill=TEXTO, anchor="lm")
+d.text((158 * K, 142 * K), NOME, font=variavel(38 * K, 600), fill=TEXTO, anchor="lm")
 titulo = variavel(58 * K, 650)
 d.text((84 * K, 232 * K), "Música do YouTube", font=titulo, fill=TEXTO, anchor="ls")
 d.text((84 * K, 302 * K), "sem 320 kbps", font=titulo, fill=DESTAQUE, anchor="ls")

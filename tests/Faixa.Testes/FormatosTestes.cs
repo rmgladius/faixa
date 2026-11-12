@@ -61,11 +61,19 @@ public class FormatosTestes
 public class FormatosArgumentosTestes
 {
     private static readonly InfoAudio Audio = Analisador.Interpretar(ExemplosYtDlp.Clipe)!;
+    private static readonly string Url = YouTube.UrlDoVideo("dQw4w9WgXcQ");
+
+    [Fact]
+    public void O_endereco_vai_por_ultimo_depois_do_separador()
+    {
+        var args = Baixador.Argumentos("https://soundcloud.com/artista/faixa", Formatos.Montar(Audio)[0], Audio);
+        Assert.Equal(["--", "https://soundcloud.com/artista/faixa"], args.TakeLast(2));
+    }
 
     [Fact]
     public void MP3_pede_o_formato_exato_e_taxa_fixa()
     {
-        var args = Baixador.Argumentos("dQw4w9WgXcQ", Formatos.Montar(Audio)[0], Audio);
+        var args = Baixador.Argumentos(Url, Formatos.Montar(Audio)[0], Audio);
 
         Assert.Equal("251/bestaudio/best", args[args.ToList().IndexOf("-f") + 1]);
         Assert.Equal("mp3", args[args.ToList().IndexOf("--audio-format") + 1]);
@@ -76,7 +84,7 @@ public class FormatosArgumentosTestes
     public void Original_nunca_reconverte()
     {
         var aac = Formatos.Montar(Audio).First(o => o.Chave == "original-aac");
-        var args = Baixador.Argumentos("dQw4w9WgXcQ", aac, Audio).ToList();
+        var args = Baixador.Argumentos(Url, aac, Audio).ToList();
 
         Assert.Equal("140/bestaudio/best", args[args.IndexOf("-f") + 1]);
         Assert.Equal("best", args[args.IndexOf("--audio-format") + 1]);
@@ -86,7 +94,7 @@ public class FormatosArgumentosTestes
     [Fact]
     public void Sem_analise_pede_o_melhor_audio()
     {
-        var args = Baixador.Argumentos("dQw4w9WgXcQ", Formatos.Montar(null, 100)[0], null).ToList();
+        var args = Baixador.Argumentos(Url, Formatos.Montar(null, 100)[0], null).ToList();
         Assert.Equal("bestaudio/best", args[args.IndexOf("-f") + 1]);
     }
 }

@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="960" height="400" viewBox="0 0 960 400" role="img" aria-labelledby="t d" font-family="Segoe UI, -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif">
   <title id="t">Nome de música, não de vídeo</title>
-  <desc id="d">Exemplos de títulos do YouTube e do nome de arquivo que o Faixa gera: sai o que descreve o vídeo, como Clipe Oficial, 4K, Visualizer e hashtags, e artista e música ficam na ordem certa.</desc>
+  <desc id="d">Exemplos de títulos do YouTube e do nome de arquivo que o app gera: sai o que descreve o vídeo, como Clipe Oficial, 4K, Visualizer e hashtags, e artista e música ficam na ordem certa.</desc>
   <rect width="960" height="400" rx="24" fill="#0B0C10"/>
   <text x="40" y="48" font-size="15" fill="#9AA3B2">Título no YouTube</text>
   <text x="560" y="48" font-size="15" fill="#9AA3B2">Arquivo salvo</text>

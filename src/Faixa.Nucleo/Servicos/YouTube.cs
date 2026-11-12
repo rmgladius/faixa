@@ -6,13 +6,16 @@ using System.Text.RegularExpressions;
 
 namespace Faixa.Servicos;
 
-public sealed record InfoVideo(string Id, string Titulo, string Canal, byte[]? Capa)
+/// <summary>A música do modo de uma faixa: o que aparece na prévia e o endereço que o yt-dlp baixa.</summary>
+/// <param name="Id">ID do vídeo no YouTube; no SoundCloud, o próprio endereço da faixa.</param>
+/// <param name="Endereco">Endereço para o yt-dlp quando não é um vídeo do YouTube.</param>
+public sealed record InfoVideo(string Id, string Titulo, string Canal, byte[]? Capa, string? Endereco = null)
 {
-    public string Url => YouTube.UrlDoVideo(Id);
+    public string Url => Endereco ?? YouTube.UrlDoVideo(Id);
 }
 
 /// <summary>O que um link aponta: um vídeo, uma playlist, ou os dois (vídeo aberto dentro de uma playlist).</summary>
-public sealed record LinkYouTube(string? VideoId, string? ListaId);
+public sealed record LinkYouTube(string? VideoId, string? ListaId) : Link;
 
 public sealed class VideoNaoEncontradoException() : Exception("Vídeo não encontrado");
 
@@ -22,7 +25,7 @@ public sealed class VideoNaoEncontradoException() : Exception("Vídeo não encon
 /// </summary>
 public static partial class YouTube
 {
-    internal static readonly HttpClient Http = CriarHttp();
+    internal static HttpClient Http => Rede.Http;
 
     // Da maior para a menor. A maxres e a hq720 são 16:9 sem tarja; a hqdefault tem tarja preta
     // em cima e embaixo, por isso fica por último.
@@ -175,13 +178,6 @@ public static partial class YouTube
     {
         canal = (canal ?? "").Trim();
         return canal.EndsWith(" - Topic") ? canal[..^8] : canal;
-    }
-
-    private static HttpClient CriarHttp()
-    {
-        var http = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
-        http.DefaultRequestHeaders.UserAgent.ParseAdd("Faixa/1.0 (+Windows)");
-        return http;
     }
 
     private sealed class OEmbed

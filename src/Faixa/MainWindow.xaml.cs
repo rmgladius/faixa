@@ -60,8 +60,9 @@ public partial class MainWindow : Window
     private bool _nomeEditado;
     private bool _definindoNome;
 
-    // Link atual e modo playlist.
-    private LinkYouTube? _link;
+    // Link atual e modo playlist. _link é o que está em uso (o curto já aberto); _linkTexto, o do campo.
+    private Link? _link;
+    private Link? _linkTexto;
     private bool _modoLista;
     private InfoLista? _lista;
     private bool _carregandoLista;
@@ -78,6 +79,15 @@ public partial class MainWindow : Window
     private List<OpcaoFormato> _opcoes = [];
     private bool _montandoOpcoes;
     private OpcaoFormato? _opcaoEmAndamento;
+    private bool _semAudio; // a análise disse que não há o que baixar (só o trecho do SoundCloud Go+)
+
+    // Spotify e Deezer: os dados oficiais da música e a mesma gravação achada no YouTube Music.
+    private FaixaCatalogo? _faixaCatalogo;
+    private ResultadoBusca? _achada;
+    private byte[]? _capaOficial;
+    private bool _procurando;
+    private string? _falhaBusca;
+    private CancellationTokenSource? _ctsBusca;
 
     private Aviso? _avisoLink;
     private Aviso? _avisoPreparo;
@@ -94,6 +104,19 @@ public partial class MainWindow : Window
 
     private bool Capturando => _pastaCapturas is not null;
 
+    private LinkYouTube? LinkYt => _link as LinkYouTube;
+
+    /// <summary>De onde vem o áudio que vai ser baixado. Spotify e Deezer: do YouTube Music.</summary>
+    private string NomeFonte => _link switch
+    {
+        LinkSoundCloud => "SoundCloud",
+        LinkCatalogo => "YouTube Music",
+        _ => "YouTube",
+    };
+
+    /// <summary>De onde vêm os dados da música, nos links do Spotify e do Deezer.</summary>
+    private string NomeCatalogo => _link is LinkCatalogo c ? Links.Nome(c.Plataforma) : "serviço";
+
     public MainWindow(string? pastaCapturas = null, bool demo = false)
     {
         _pastaCapturas = pastaCapturas;
@@ -108,7 +131,7 @@ public partial class MainWindow : Window
         };
 
         ListaFaixas.ItemsSource = _faixas;
-        Marca.ToolTip = $"Faixa {Atualizador.VersaoAtualTexto}";
+        Marca.ToolTip = $"{Programa.Nome} {Atualizador.VersaoAtualTexto}";
         MontarOpcoes();
 
         Loaded += OnLoaded;
@@ -163,7 +186,7 @@ public partial class MainWindow : Window
         if (_baixando && !Capturando)
         {
             var resposta = MessageBox.Show(this, "Uma música ainda está sendo baixada. Fechar mesmo assim?",
-                "Faixa", MessageBoxButton.YesNo, MessageBoxImage.Question);
+                Programa.Nome, MessageBoxButton.YesNo, MessageBoxImage.Question);
             if (resposta != MessageBoxResult.Yes)
             {
                 e.Cancel = true;
@@ -269,6 +292,16 @@ public partial class MainWindow : Window
 
     private void OnPreviewKeyDown(object sender, KeyEventArgs e)
     {
+        if (SobreAberto)
+        {
+            if (e.Key == Key.Escape)
+            {
+                FecharSobre();
+                e.Handled = true;
+            }
+            return;
+        }
+
         // Ctrl+V em qualquer lugar da janela cola o link, mesmo sem clicar no campo.
         if (e.Key == Key.V && Keyboard.Modifiers == ModifierKeys.Control && !CampoLink.IsKeyboardFocusWithin && !_baixando)
         {
@@ -279,14 +312,14 @@ public partial class MainWindow : Window
 
     private void OnPreviewDragOver(object sender, DragEventArgs e)
     {
-        e.Effects = !_baixando && e.Data.GetDataPresent(DataFormats.UnicodeText) ? DragDropEffects.Copy : DragDropEffects.None;
+        e.Effects = !_baixando && !SobreAberto && e.Data.GetDataPresent(DataFormats.UnicodeText) ? DragDropEffects.Copy : DragDropEffects.None;
         e.Handled = true;
     }
 
     private void OnPreviewDrop(object sender, DragEventArgs e)
     {
         e.Handled = true;
-        if (!_baixando && e.Data.GetData(DataFormats.UnicodeText) is string texto && texto.Trim().Length > 0)
+        if (!_baixando && !SobreAberto && e.Data.GetData(DataFormats.UnicodeText) is string texto && texto.Trim().Length > 0)
             DefinirLink(texto.Trim());
     }
 
@@ -328,43 +361,115 @@ public partial class MainWindow : Window
     private void ProcessarLink()
     {
         var texto = CampoLink.Text.Trim();
-        var link = YouTube.ExtrairLink(texto);
+        var link = Links.Reconhecer(texto);
 
         // Mesmo link de antes: não recarrega nem apaga o "baixada".
-        if (link is not null && link == _link)
+        if (link is not null && link == _linkTexto)
             return;
         // Mesmo vídeo, só mudou o resto do link (ex.: "&t=30s" ou a playlist): atualiza a oferta de playlist.
-        if (link?.VideoId is { } mesmo && !_modoLista && mesmo == (_video?.Id ?? _idCarregando))
+        if (link is LinkYouTube { VideoId: { } mesmo } && _link is LinkYouTube && !_modoLista && mesmo == (_video?.Id ?? _idCarregando))
         {
-            _link = link;
+            _link = _linkTexto = link;
             AtualizarStatus();
             return;
         }
 
+        _linkTexto = link;
+        Abrir(link, vazio: texto.Length == 0);
+    }
+
+    /// <summary>Começa a carregar o que o link aponta, ou diz por que não dá.</summary>
+    private void Abrir(Link? link, bool vazio = false)
+    {
         _link = link;
         ZerarTudo();
+        _avisoLink = null;
 
-        if (texto.Length == 0)
+        switch (link)
         {
-            _avisoLink = null;
-            MostrarCapaVazia("A capa aparece aqui");
-            MostrarSemNome("Nenhuma música ainda");
+            case null when vazio:
+                MostrarCapaVazia("A capa aparece aqui");
+                MostrarSemNome("Nenhuma música ainda");
+                break;
+            case null:
+                _avisoLink = new Aviso($"Link não reconhecido. Funcionam links do {Links.Aceitos}.", Tom.Erro);
+                MostrarCapaVazia("Link não reconhecido", IconeAlerta);
+                MostrarSemNome("Nenhuma música ainda");
+                break;
+            case LinkSemSuporte sem:
+                _avisoLink = new Aviso(sem.Motivo, Tom.Erro);
+                MostrarCapaVazia("Esse link não tem música", IconeAlerta);
+                MostrarSemNome("Nenhuma música ainda");
+                break;
+            case LinkCurto curto:
+                _ = AbrirCurtoAsync(curto);
+                break;
+            case LinkYouTube { VideoId: { } id }:
+                _ = CarregarPreviaAsync(id);
+                break;
+            case LinkYouTube youtube:
+                _ = CarregarListaAsync(youtube.ListaId!);
+                break;
+            case LinkSoundCloud { EhSet: false } faixa:
+                _ = CarregarPreviaSoundCloudAsync(faixa.Url);
+                break;
+            case LinkSoundCloud set:
+                _ = CarregarListaAsync("PLAYLIST DO SOUNDCLOUD", "Lendo o set…", precisaYtDlp: false,
+                    ct => SoundCloud.ListarSetAsync(set.Url, ct));
+                break;
+            case LinkCatalogo { Tipo: TipoCatalogo.Faixa } musica:
+                _ = CarregarMusicaDoCatalogoAsync(musica);
+                break;
+            case LinkCatalogo lista:
+                var servico = Links.Nome(lista.Plataforma);
+                _ = CarregarListaAsync($"{(lista.Tipo == TipoCatalogo.Album ? "ÁLBUM" : "PLAYLIST")} DO {servico.ToUpperInvariant()}",
+                    $"Lendo no {servico}…", precisaYtDlp: false,
+                    async ct => Catalogo.ParaLista(await Catalogo.BuscarAsync(lista, ct), lista.Id));
+                break;
         }
-        else if (link is null)
+
+        AtualizarBotao();
+        AtualizarStatus();
+    }
+
+    /// <summary>spotify.link, link.deezer.com, on.soundcloud.com: abre para saber aonde levam.</summary>
+    private async Task AbrirCurtoAsync(LinkCurto curto)
+    {
+        var cts = _ctsPrevia = new CancellationTokenSource();
+        _idCarregando = curto.Url;
+        MostrarCapaVazia("Abrindo o link…", pulsando: true);
+        MostrarSemNome("Abrindo o link curto…");
+
+        try
         {
-            _avisoLink = new Aviso("Esse link não parece ser do YouTube.", Tom.Erro);
+            var destino = await Links.ResolverCurtoAsync(curto, cts.Token);
+            if (cts.IsCancellationRequested)
+                return;
+            if (destino is not null)
+            {
+                Abrir(destino);
+                return;
+            }
+            _avisoLink = new Aviso($"Não consegui abrir esse link curto. Copie no {Links.Nome(curto.Plataforma)} o link completo.", Tom.Erro);
             MostrarCapaVazia("Link não reconhecido", IconeAlerta);
             MostrarSemNome("Nenhuma música ainda");
         }
-        else if (link.VideoId is { } id)
+        catch (OperationCanceledException)
         {
-            _avisoLink = null;
-            _ = CarregarPreviaAsync(id);
+            return;
         }
-        else
+        catch (ErroDownload erro)
         {
-            _avisoLink = null;
-            _ = CarregarListaAsync(link.ListaId!);
+            if (cts.IsCancellationRequested)
+                return;
+            _avisoLink = new Aviso(erro.Message, Tom.Erro, "Tentar de novo", () => Abrir(curto), erro.Detalhe);
+            MostrarCapaVazia("Sem conexão", IconeAlerta);
+            MostrarSemNome("Nenhuma música ainda");
+        }
+        finally
+        {
+            if (ReferenceEquals(_ctsPrevia, cts))
+                _idCarregando = null;
         }
 
         AtualizarBotao();
@@ -383,6 +488,14 @@ public partial class MainWindow : Window
         _nome = null;
         _nomeEditado = false;
 
+        _ctsBusca?.Cancel();
+        _ctsBusca = null;
+        _faixaCatalogo = null;
+        _achada = null;
+        _capaOficial = null;
+        _procurando = false;
+        _falhaBusca = null;
+
         _ctsLista?.Cancel();
         _ctsLista = null;
         _lista = null;
@@ -393,16 +506,26 @@ public partial class MainWindow : Window
         ZerarAnalise();
     }
 
-    private async Task CarregarPreviaAsync(string id)
+    private Task CarregarPreviaAsync(string id) => CarregarPreviaAsync(id, ct => YouTube.BuscarAsync(id, ct),
+        new InfoVideo(id, "Vídeo do YouTube", "", null), "Buscando o vídeo…",
+        "Vídeo não encontrado. Pode ser privado ou ter sido removido.", "Vídeo não encontrado");
+
+    private Task CarregarPreviaSoundCloudAsync(string url) => CarregarPreviaAsync(url, ct => SoundCloud.BuscarAsync(url, ct),
+        new InfoVideo(url, "Faixa do SoundCloud", "", null, url), "Buscando no SoundCloud…",
+        "Faixa não encontrada. Pode ser privada ou ter sido removida.", "Faixa não encontrada");
+
+    /// <param name="reserva">Se a prévia falhar por outro motivo, o download ainda pode funcionar com isto.</param>
+    private async Task CarregarPreviaAsync(string id, Func<CancellationToken, Task<InfoVideo>> buscar, InfoVideo reserva,
+        string buscando, string naoEncontrado, string capaNaoEncontrado)
     {
         var cts = _ctsPrevia = new CancellationTokenSource();
         _idCarregando = id;
         MostrarCapaVazia("Carregando…", pulsando: true);
-        MostrarSemNome("Buscando o vídeo…");
+        MostrarSemNome(buscando);
 
         try
         {
-            var info = await YouTube.BuscarAsync(id, cts.Token);
+            var info = await buscar(cts.Token);
             if (cts.IsCancellationRequested)
                 return;
             _video = info;
@@ -414,8 +537,8 @@ public partial class MainWindow : Window
         {
             if (cts.IsCancellationRequested)
                 return;
-            _avisoLink = new Aviso("Vídeo não encontrado. Pode ser privado ou ter sido removido.", Tom.Erro);
-            MostrarCapaVazia("Vídeo não encontrado", IconeAlerta);
+            _avisoLink = new Aviso(naoEncontrado, Tom.Erro);
+            MostrarCapaVazia(capaNaoEncontrado, IconeAlerta);
             MostrarSemNome("Nenhuma música ainda");
         }
         catch (OperationCanceledException)
@@ -427,7 +550,7 @@ public partial class MainWindow : Window
             if (cts.IsCancellationRequested)
                 return;
             // A prévia falhou, mas o download pode funcionar: deixa tentar.
-            _video = new InfoVideo(id, "Vídeo do YouTube", "", null);
+            _video = reserva;
             MostrarCapa(null);
             DefinirNome(Metadados.Resolver(new DadosMusica(_video.Titulo, "")));
             AnalisarSePreciso();
@@ -438,6 +561,118 @@ public partial class MainWindow : Window
                 _idCarregando = null;
         }
 
+        AtualizarBotao();
+        AtualizarStatus();
+    }
+
+    // ───────────────────────── Spotify e Deezer ─────────────────────────
+
+    /// <summary>Lê a música no Spotify ou no Deezer (nome, artistas, álbum, capa) e procura o áudio no YouTube Music.</summary>
+    private async Task CarregarMusicaDoCatalogoAsync(LinkCatalogo link)
+    {
+        var cts = _ctsPrevia = new CancellationTokenSource();
+        var servico = Links.Nome(link.Plataforma);
+        _idCarregando = link.Id;
+        MostrarCapaVazia("Carregando…", pulsando: true);
+        MostrarSemNome($"Buscando no {servico}…");
+
+        try
+        {
+            var info = await Catalogo.BuscarAsync(link, cts.Token);
+            var faixa = info.Faixas[0];
+            var capa = await Rede.BaixarImagemAsync(faixa.CapaUrl ?? info.CapaUrl, cts.Token);
+            if (cts.IsCancellationRequested)
+                return;
+            _faixaCatalogo = faixa;
+            _capaOficial = capa;
+            MostrarCapa(capa);
+            DefinirNome(Catalogo.Nome(faixa));
+            _ = ProcurarNoYouTubeMusicAsync();
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+        catch (Exception erro)
+        {
+            if (cts.IsCancellationRequested)
+                return;
+            var falha = erro as ErroDownload;
+            var log = RegistrarErro($"{servico}: {erro.Message}", falha?.Detalhe ?? erro.ToString());
+            _avisoLink = falha is { Tipo: TipoErro.Conexao or TipoErro.Bloqueio }
+                ? new Aviso(falha.Message, Tom.Erro, "Tentar de novo", () => Abrir(link), falha.Detalhe)
+                : new Aviso(falha?.Message ?? $"Não consegui ler esse link do {servico}.", Tom.Erro, "Detalhes", () => AbrirArquivo(log), erro.Message);
+            MostrarCapaVazia(falha?.Tipo == TipoErro.Indisponivel ? "Música não encontrada" : "Não deu para abrir", IconeAlerta);
+            MostrarSemNome("Nenhuma música ainda");
+        }
+        finally
+        {
+            if (ReferenceEquals(_ctsPrevia, cts))
+                _idCarregando = null;
+        }
+
+        AtualizarBotao();
+        AtualizarStatus();
+    }
+
+    /// <summary>
+    /// Procura a mesma gravação no YouTube Music (ISRC, nome, artista e duração). Achando, segue como um
+    /// vídeo do YouTube: análise do áudio e download. Sem um resultado confiável, não baixa nada.
+    /// </summary>
+    private async Task ProcurarNoYouTubeMusicAsync()
+    {
+        if (_faixaCatalogo is not { } faixa || _procurando)
+            return;
+        var cts = _ctsBusca = CancellationTokenSource.CreateLinkedTokenSource(_ctsJanela.Token);
+        _procurando = true;
+        _falhaBusca = null;
+        _avisoAnalise = null;
+        MostrarFonte();
+        AtualizarBotao();
+        AtualizarStatus();
+
+        try
+        {
+            var achada = await Correspondencia.ProcurarAsync(faixa, cts.Token);
+            if (cts.IsCancellationRequested)
+                return;
+            if (achada is null)
+            {
+                _falhaBusca = "Não achei essa gravação no YouTube Music.";
+                var busca = "https://music.youtube.com/search?q=" + Uri.EscapeDataString($"{faixa.ArtistasTexto} {faixa.Titulo}");
+                _avisoAnalise = new Aviso("Não achei essa gravação no YouTube Music, com o mesmo artista e duração.", Tom.Erro,
+                    "Ver a busca", () => AbrirArquivo(busca));
+            }
+            else
+            {
+                _achada = achada;
+                if (!_nomeEditado && _nome is { Album: null } nome && achada.Album is { } album)
+                    DefinirNome(nome with { Album = album });
+                _video = new InfoVideo(achada.VideoId, faixa.Titulo, faixa.ArtistasTexto, _capaOficial);
+                AnalisarSePreciso();
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+        catch (Exception erro)
+        {
+            if (cts.IsCancellationRequested)
+                return;
+            var falha = erro as ErroDownload;
+            RegistrarErro("Busca no YouTube Music: " + erro.Message, falha?.Detalhe ?? erro.ToString());
+            _falhaBusca = erro.Message;
+            _avisoAnalise = new Aviso(falha?.Message ?? "Não consegui procurar no YouTube Music.", Tom.Erro,
+                "Tentar de novo", () => _ = ProcurarNoYouTubeMusicAsync(), falha?.Detalhe ?? erro.Message);
+        }
+        finally
+        {
+            if (ReferenceEquals(_ctsBusca, cts))
+                _procurando = false;
+        }
+
+        MostrarFonte();
         AtualizarBotao();
         AtualizarStatus();
     }
@@ -486,7 +721,7 @@ public partial class MainWindow : Window
             Resultado pronto;
             try
             {
-                pronto = await Baixador.BaixarAsync(video.Id, opcao, audio, progresso, cts.Token);
+                pronto = await Baixador.BaixarAsync(video.Url, opcao, audio, progresso, cts.Token);
             }
             catch (ErroDownload erro) when (erro.ValeAtualizar && DateTime.Now - _config.UltimaAtualizacaoYtDlp > TimeSpan.FromHours(1))
             {
@@ -496,7 +731,7 @@ public partial class MainWindow : Window
                 BarraIndeterminada();
                 await AtualizarYtDlpAsync();
                 cts.Token.ThrowIfCancellationRequested();
-                pronto = await Baixador.BaixarAsync(video.Id, opcao, audio, progresso, cts.Token);
+                pronto = await Baixador.BaixarAsync(video.Url, opcao, audio, progresso, cts.Token);
             }
 
             MostrarStatus($"Salvando em {Config.NomeAmigavel(destino)}…");
@@ -504,13 +739,13 @@ public partial class MainWindow : Window
             _pastaPendente = destino;
             _descricaoPendente = DescreverResultado(opcao, pronto);
 
-            // Nome: o editado na tela; senão, o que o YouTube informou no próprio download.
-            var nome = _nomeEditado && _nome is not null
+            // Nome: o editado na tela; o oficial do Spotify ou do Deezer; senão, o que o YouTube informou no download.
+            var nome = (_nomeEditado || _faixaCatalogo is not null) && _nome is not null
                 ? _nome
                 : pronto.Dados is { } dados ? Metadados.Resolver(dados) : _nome ?? Metadados.Resolver(new DadosMusica(video.Titulo, video.Canal));
             if (!_nomeEditado && nome != _nome)
                 DefinirNome(nome);
-            GravarEtiquetas(pronto.Arquivo, nome, null);
+            GravarEtiquetas(pronto.Arquivo, nome, null, _capaOficial);
             _nomeArquivoPendente = Metadados.NomeDeArquivo(nome, Path.GetExtension(pronto.Arquivo).TrimStart('.'));
             await EntregarPendenteAsync();
         }
@@ -580,7 +815,7 @@ public partial class MainWindow : Window
             }
             else if (!MesmaPasta(_pastaPendente, Config.PastaPadrao) && await AcessoControlado.EstaLigadoAsync())
             {
-                _avisoResultado = new Aviso($"O Windows protege {pasta} e bloqueou o Faixa.", Tom.Erro,
+                _avisoResultado = new Aviso($"O Windows protege {pasta} e bloqueou o {Programa.Nome}.", Tom.Erro,
                     "Salvar em Downloads", () => _ = UsarPastaPadraoAsync(), erro.Message);
             }
             else
@@ -620,7 +855,7 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Músicas que ficaram prontas mas não foram entregues (bloqueio, Faixa fechado no meio)
+    /// Músicas que ficaram prontas mas não foram entregues (bloqueio, app fechado no meio)
     /// vão para a pasta atual ao abrir; se ela recusar, para a padrão.
     /// </summary>
     private void EntregarSobras()
@@ -686,7 +921,7 @@ public partial class MainWindow : Window
         switch (p.Fase)
         {
             case Fase.Iniciando:
-                MostrarStatus("Conectando ao YouTube…");
+                MostrarStatus($"Conectando ao {NomeFonte}…");
                 BarraIndeterminada();
                 break;
             case Fase.Baixando when p.Fracao is { } f:
@@ -720,8 +955,8 @@ public partial class MainWindow : Window
     {
         _montandoOpcoes = true;
         _opcoes = _modoLista
-            ? Formatos.Montar(null, _faixas.Where(f => f.Selecionada && f.Item.Disponivel).Sum(f => f.Item.Duracao ?? 0))
-            : Formatos.Montar(_audio);
+            ? Formatos.Montar(null, _faixas.Where(f => f.Selecionada && f.Item.Disponivel).Sum(f => f.Item.Duracao ?? 0), NomeFonte)
+            : Formatos.Montar(_audio, fonte: NomeFonte);
         SeletorFormato.ItemsSource = _opcoes;
         SeletorFormato.SelectedItem = Formatos.Escolher(_opcoes, _config.Formato);
         _montandoOpcoes = false;
@@ -754,22 +989,23 @@ public partial class MainWindow : Window
         _analisando = false;
         _falhaAnalise = null;
         _avisoAnalise = null;
+        _semAudio = false;
         MontarOpcoes();
         MostrarFonte();
     }
 
     private void AnalisarSePreciso()
     {
-        if (_prontos && _modoLista && _lista is null && !_carregandoLista && !_falhaLista && _link?.ListaId is { } listaId && !Capturando)
+        if (_prontos && _modoLista && _lista is null && !_carregandoLista && !_falhaLista && LinkYt?.ListaId is { } listaId && !Capturando)
             _ = CarregarListaAsync(listaId);
         else if (_prontos && _video is { } video && !_analisando && _audio is null && _falhaAnalise is null && !Capturando)
-            _ = AnalisarAsync(video.Id);
+            _ = AnalisarAsync(video.Url);
         else
             MostrarFonte();
     }
 
-    /// <summary>Pergunta ao yt-dlp quais formatos de áudio o vídeo tem (sem baixar nada).</summary>
-    private async Task AnalisarAsync(string id)
+    /// <summary>Pergunta ao yt-dlp quais formatos de áudio o vídeo (ou a faixa) tem, sem baixar nada.</summary>
+    private async Task AnalisarAsync(string url)
     {
         var cts = _ctsAnalise = CancellationTokenSource.CreateLinkedTokenSource(_ctsJanela.Token);
         _analisando = true;
@@ -784,11 +1020,12 @@ public partial class MainWindow : Window
                 await atualizacao; // o yt-dlp.exe não pode ser trocado enquanto roda
                 _atualizacao = null;
             }
-            var audio = await Analisador.AnalisarAsync(id, cts.Token);
-            if (cts.IsCancellationRequested || _video?.Id != id)
+            var audio = await Analisador.AnalisarAsync(url, cts.Token);
+            if (cts.IsCancellationRequested || _video?.Url != url)
                 return;
             _audio = audio;
-            if (!_nomeEditado && audio.Dados is { } dados)
+            // Nas músicas do Spotify e do Deezer, o nome oficial do serviço fica.
+            if (!_nomeEditado && _faixaCatalogo is null && audio.Dados is { } dados)
                 DefinirNome(Metadados.Resolver(dados));
         }
         catch (OperationCanceledException)
@@ -797,13 +1034,15 @@ public partial class MainWindow : Window
         }
         catch (Exception erro)
         {
-            if (cts.IsCancellationRequested || _video?.Id != id)
+            if (cts.IsCancellationRequested || _video?.Url != url)
                 return;
             // A análise falhar não impede o download: ele cai no "melhor áudio" e conta o que veio.
+            // A exceção é o trecho de 30 s do SoundCloud Go+: baixar daria só o trecho.
             if (erro is ErroDownload falha)
             {
                 RegistrarErro("Análise do áudio: " + falha.Message, falha.Detalhe);
                 _falhaAnalise = falha.Message;
+                _semAudio = falha.Tipo == TipoErro.Previa;
                 _avisoAnalise = new Aviso(falha.Message, Tom.Erro, Detalhe: falha.Detalhe);
             }
             else
@@ -831,11 +1070,11 @@ public partial class MainWindow : Window
         var destaque = false;
 
         if (_video is null)
-            texto = null;
+            texto = _procurando ? "Procurando no YouTube Music…" : _falhaBusca is not null ? "Não achei no YouTube Music" : null;
         else if (_audio is { } audio)
         {
             var f = audio.Melhor;
-            texto = "No YouTube: " + string.Join(" · ", new[]
+            texto = $"No {NomeFonte}: " + string.Join(" · ", new[]
             {
                 f.Nome, f.KbpsTexto, f.KhzTexto, audio.Duracao is double d ? Formatos.Duracao(d) : null,
             }.Where(x => x is not null));
@@ -844,9 +1083,16 @@ public partial class MainWindow : Window
         else if (_analisando)
             texto = "Lendo a qualidade do áudio…";
         else if (_falhaAnalise is not null)
-            texto = "Qualidade original indisponível";
+            texto = _semAudio ? "Sem o áudio completo para baixar" : "Qualidade original indisponível";
         else if (!_prontos)
             texto = "A qualidade aparece depois do preparo";
+
+        // Spotify e Deezer: qual gravação foi achada, para conferir.
+        Fonte.ToolTip = _achada is { } achada && _video is not null
+            ? $"Achada no YouTube Music: {achada.Descricao}"
+              + (achada.Album is { } album ? $"\nÁlbum: {album}" : "")
+              + (_faixaCatalogo?.Duracao is double duracao ? $"\nNo {NomeCatalogo}: {Formatos.Duracao(duracao)}" : "")
+            : null;
 
         Fonte.Visibility = texto is null ? Visibility.Hidden : Visibility.Visible;
         FonteTexto.Text = texto ?? "";
@@ -877,14 +1123,14 @@ public partial class MainWindow : Window
     /// <summary>"Playlist inteira": o link tinha vídeo e playlist, e a pessoa quer a playlist.</summary>
     private void AbrirPlaylistDoLink()
     {
-        if (_link?.ListaId is { } listaId && !_baixando)
+        if (LinkYt?.ListaId is { } listaId && !_baixando)
             _ = CarregarListaAsync(listaId);
     }
 
     /// <summary>"Só esta música": volta ao vídeo do link.</summary>
     private void VoltarAoVideo()
     {
-        if (_link?.VideoId is not { } id || _baixando)
+        if (LinkYt?.VideoId is not { } id || _baixando)
             return;
         ZerarTudo();
         _ = CarregarPreviaAsync(id);
@@ -892,19 +1138,23 @@ public partial class MainWindow : Window
         AtualizarStatus();
     }
 
-    private async Task CarregarListaAsync(string listaId)
+    private Task CarregarListaAsync(string listaId) =>
+        CarregarListaAsync("PLAYLIST", "Lendo a playlist…", precisaYtDlp: true, ct => Playlists.ListarAsync(listaId, ct));
+
+    /// <param name="precisaYtDlp">Playlists do YouTube são lidas pelo yt-dlp; as outras, direto do serviço.</param>
+    private async Task CarregarListaAsync(string tipo, string lendo, bool precisaYtDlp, Func<CancellationToken, Task<InfoLista>> listar)
     {
         ZerarTudo();
         MostrarModoLista(true);
-        ListaTipo.Text = "PLAYLIST";
-        ListaTitulo.Text = _prontos ? "Lendo a playlist…" : "A playlist abre depois do preparo";
+        ListaTipo.Text = tipo;
+        ListaTitulo.Text = _prontos || !precisaYtDlp ? lendo : "A playlist abre depois do preparo";
         ListaResumo.Text = "";
         ListaSelecao.Text = "";
         ListaCapa.Background = Pincel("Superficie2");
         ListaCapaIcone.Visibility = Visibility.Visible;
         MarcarTodas.IsChecked = false;
         MontarOpcoes();
-        if (!_prontos)
+        if (precisaYtDlp && !_prontos)
         {
             AtualizarBotao();
             AtualizarStatus();
@@ -918,12 +1168,12 @@ public partial class MainWindow : Window
 
         try
         {
-            if (_atualizacao is { } atualizacao)
+            if (precisaYtDlp && _atualizacao is { } atualizacao)
             {
                 await atualizacao;
                 _atualizacao = null;
             }
-            var lista = await Playlists.ListarAsync(listaId, cts.Token);
+            var lista = await listar(cts.Token);
             if (cts.IsCancellationRequested)
                 return;
             MostrarLista(lista);
@@ -967,29 +1217,35 @@ public partial class MainWindow : Window
         foreach (var item in lista.Itens)
             _faixas.Add(new FaixaDaLista(item));
 
-        ListaTipo.Text = lista.EhAlbum ? "ÁLBUM" : "PLAYLIST";
+        var tipo = lista.EhAlbum ? "ÁLBUM" : "PLAYLIST";
+        ListaTipo.Text = lista.Origem == Plataforma.YouTube ? tipo : $"{tipo} DO {Links.Nome(lista.Origem).ToUpperInvariant()}";
         ListaTitulo.Text = lista.Titulo;
         var partes = new List<string>();
         if (lista.Canal.Length > 0)
             partes.Add(lista.Canal);
-        partes.Add(lista.Disponiveis == 1 ? "1 música" : $"{lista.Disponiveis} músicas");
+        partes.Add(lista.Cortada ? $"{lista.Disponiveis} primeiras músicas"
+            : lista.Disponiveis == 1 ? "1 música" : $"{lista.Disponiveis} músicas");
         if (lista.DuracaoTotal > 0)
             partes.Add(Formatos.DuracaoLonga(lista.DuracaoTotal));
         var fora = lista.Itens.Count - lista.Disponiveis;
         if (fora > 0)
             partes.Add(fora == 1 ? "1 indisponível" : $"{fora} indisponíveis");
         ListaResumo.Text = string.Join(" · ", partes);
-        ListaResumo.ToolTip = ListaResumo.Text;
+        ListaResumo.ToolTip = !lista.Cortada ? ListaResumo.Text
+            : ListaResumo.Text + Environment.NewLine + (lista.Origem == Plataforma.Spotify
+                ? $"Fora do app, o Spotify mostra só as {Spotify.LimitePlaylist} primeiras faixas de uma playlist."
+                : "A playlist é maior do que o programa consegue ler de uma vez.");
     }
 
     private async Task CarregarCapaDaListaAsync(InfoLista lista, CancellationToken ct)
     {
-        var primeira = lista.Itens.FirstOrDefault(i => i.Disponivel);
-        if (primeira is null)
+        // A capa do álbum ou da playlist, quando o serviço tem; senão, a do primeiro vídeo do YouTube.
+        var primeira = lista.Itens.FirstOrDefault(i => i.Disponivel && i.Id.Length > 0);
+        if (lista.CapaUrl is null && primeira is null)
             return;
         try
         {
-            var bytes = await YouTube.BuscarCapaAsync(primeira.Id, ct);
+            var bytes = lista.CapaUrl is { } url ? await Rede.BaixarImagemAsync(url, ct) : await YouTube.BuscarCapaAsync(primeira!.Id, ct);
             if (ct.IsCancellationRequested || bytes is null || CarregarImagem(bytes) is not { } imagem)
                 return;
             ListaCapa.Background = new ImageBrush(imagem) { Stretch = Stretch.UniformToFill };
@@ -1051,6 +1307,7 @@ public partial class MainWindow : Window
         int feitas = 0, falhas = 0;
         var cancelado = false;
         var atualizou = false;
+        var capas = new Dictionary<string, byte[]?>(); // capa oficial de cada álbum, baixada uma vez só
         try
         {
             if (_atualizacao is { } atualizacao)
@@ -1072,10 +1329,21 @@ public partial class MainWindow : Window
 
                 try
                 {
+                    // Spotify e Deezer: primeiro, a mesma gravação no YouTube Music.
+                    ResultadoBusca? achada = null;
+                    var url = faixa.Item.Url;
+                    if (faixa.Item.Catalogo is { } musica)
+                    {
+                        MostrarProgressoLista(faixa, indice, fila.Count, new Progresso(Fase.Procurando));
+                        achada = await Correspondencia.ProcurarAsync(musica, cts.Token)
+                                 ?? throw new ErroDownload(TipoErro.Indisponivel, "Não achei essa gravação no YouTube Music.", "");
+                        url = achada.Url;
+                    }
+
                     Resultado r;
                     try
                     {
-                        r = await Baixador.BaixarAsync(faixa.Item.Id, opcao, null, progresso, cts.Token);
+                        r = await Baixador.BaixarAsync(url, opcao, null, progresso, cts.Token);
                     }
                     catch (ErroDownload erro) when (erro.ValeAtualizar && !atualizou
                                                     && DateTime.Now - _config.UltimaAtualizacaoYtDlp > TimeSpan.FromHours(1))
@@ -1085,20 +1353,31 @@ public partial class MainWindow : Window
                         MostrarStatus("Atualizando o yt-dlp e tentando de novo…");
                         BarraIndeterminada();
                         await AtualizarYtDlpAsync();
-                        r = await Baixador.BaixarAsync(faixa.Item.Id, opcao, null, progresso, cts.Token);
+                        r = await Baixador.BaixarAsync(url, opcao, null, progresso, cts.Token);
                     }
 
-                    var nome = r.Dados is { } dados ? Metadados.Resolver(dados) : faixa.Nome;
+                    NomeMusica nome;
+                    byte[]? capa = null;
+                    if (faixa.Item.Catalogo is { } oficial)
+                    {
+                        nome = Catalogo.Nome(oficial, achada?.Album);
+                        if (oficial.CapaUrl is { } capaUrl && !capas.TryGetValue(capaUrl, out capa))
+                            capas[capaUrl] = capa = await Rede.BaixarImagemAsync(capaUrl, cts.Token);
+                    }
+                    else
+                    {
+                        nome = r.Dados is { } dados ? Metadados.Resolver(dados) : faixa.Nome;
+                    }
                     if (lista.EhAlbum && nome.Album is null)
                         nome = nome with { Album = lista.Titulo };
                     int? numero = lista.EhAlbum ? faixa.Numero : null;
-                    GravarEtiquetas(r.Arquivo, nome, numero);
+                    GravarEtiquetas(r.Arquivo, nome, numero, capa);
                     Baixador.Entregar(r.Arquivo, pasta,
                         Metadados.NomeDeArquivo(nome, Path.GetExtension(r.Arquivo).TrimStart('.'), numero));
 
                     faixa.Nome = nome;
                     faixa.Estado = EstadoFaixa.Pronta;
-                    faixa.Detalhe = DescreverResultado(opcao, r);
+                    faixa.Detalhe = DescreverResultado(opcao, r) + (achada is null ? "" : $"{Environment.NewLine}Do YouTube Music: {achada.Descricao}");
                     feitas++;
                 }
                 catch (ErroDownload erro)
@@ -1161,6 +1440,7 @@ public partial class MainWindow : Window
 
         var fracao = p.Fase switch
         {
+            Fase.Procurando => 0.01,
             Fase.Baixando when p.Fracao is { } f => f * 0.85,
             Fase.Convertendo => 0.9,
             Fase.Finalizando => 0.97,
@@ -1170,6 +1450,7 @@ public partial class MainWindow : Window
         var geral = (indice + fracao) / total;
         var etapa = p.Fase switch
         {
+            Fase.Procurando => "procurando no YouTube Music",
             Fase.Convertendo => opcaoSemConversao() ? "gravando" : "convertendo",
             Fase.Finalizando => "gravando a capa",
             _ => "baixando",
@@ -1180,7 +1461,7 @@ public partial class MainWindow : Window
         bool opcaoSemConversao() => _opcaoEmAndamento?.SemConversao == true;
     }
 
-    // ───────────────────────── Atualização do Faixa ─────────────────────────
+    // ───────────────────────── Atualização ─────────────────────────
 
     private async Task ProcurarVersaoNovaAsync()
     {
@@ -1195,8 +1476,9 @@ public partial class MainWindow : Window
         if (_versaoNova is null)
             return;
         BotaoAtualizarTexto.Text = $"Versão {_versaoNova.Texto}";
-        BotaoAtualizar.ToolTip = $"Há uma versão nova do Faixa ({_versaoNova.Texto}). Você está na {Atualizador.VersaoAtualTexto}.";
+        BotaoAtualizar.ToolTip = $"Há uma versão nova ({_versaoNova.Texto}). Você está na {Atualizador.VersaoAtualTexto}.";
         BotaoAtualizar.Visibility = Visibility.Visible;
+        BotaoSobreTexto.Visibility = Visibility.Collapsed;
     }
 
     private async void Atualizar_Click(object sender, RoutedEventArgs e)
@@ -1206,9 +1488,9 @@ public partial class MainWindow : Window
 
         var notas = string.IsNullOrWhiteSpace(nova.Notas) ? "" : $"\n\nNovidades:\n{nova.Notas}";
         var resposta = MessageBox.Show(this,
-            $"Atualizar o Faixa da versão {Atualizador.VersaoAtualTexto} para a {nova.Texto}?" +
+            $"Atualizar o {Programa.Nome} da versão {Atualizador.VersaoAtualTexto} para a {nova.Texto}?" +
             $"\n\nO programa baixa a versão nova, confere o arquivo e reabre sozinho.{notas}",
-            "Atualizar o Faixa", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            $"Atualizar o {Programa.Nome}", MessageBoxButton.YesNo, MessageBoxImage.Question);
         if (resposta != MessageBoxResult.Yes)
             return;
 
@@ -1230,16 +1512,16 @@ public partial class MainWindow : Window
         }
         catch (Exception erro) when (erro is UnauthorizedAccessException or IOException && baixado is not null && File.Exists(baixado))
         {
-            // A pasta do Faixa não aceita a troca (ex.: protegida pelo Windows): entrega o .exe novo em Downloads.
+            // A pasta do programa não aceita a troca (ex.: protegida pelo Windows): entrega o .exe novo em Downloads.
             RegistrarErro("Atualização: troca do .exe recusada", erro.ToString());
-            var destino = Path.Combine(Config.PastaDownloads, $"Faixa-{nova.Texto}.exe");
+            var destino = Path.Combine(Config.PastaDownloads, $"{Path.GetFileNameWithoutExtension(Programa.Executavel)}-{nova.Texto}.exe");
             File.Move(baixado, destino, overwrite: true);
-            _avisoResultado = new Aviso($"Não consegui trocar o programa na pasta dele. A versão {nova.Texto} ficou em Downloads: feche o Faixa e use o arquivo novo.",
+            _avisoResultado = new Aviso($"Não consegui trocar o programa na pasta dele. A versão {nova.Texto} ficou em Downloads: feche o programa e use o arquivo novo.",
                 Tom.Erro, "Abrir pasta", () => MostrarNoExplorer(destino));
         }
         catch (Exception erro)
         {
-            var log = RegistrarErro("Atualização do Faixa", erro.ToString());
+            var log = RegistrarErro("Atualização do programa", erro.ToString());
             _avisoResultado = new Aviso(erro is InvalidDataException ? erro.Message : "Não consegui baixar a versão nova. Tente mais tarde.",
                 Tom.Erro, "Detalhes", () => AbrirArquivo(log), erro.Message);
         }
@@ -1278,7 +1560,7 @@ public partial class MainWindow : Window
         if (AcessoControlado.PastaProtegida(dialogo.FolderName) && await AcessoControlado.EstaLigadoAsync())
         {
             _avisoResultado = new Aviso(
-                $"O Windows protege {Config.NomeAmigavel(dialogo.FolderName)} e vai bloquear o Faixa.",
+                $"O Windows protege {Config.NomeAmigavel(dialogo.FolderName)} e vai bloquear o {Programa.Nome}.",
                 Tom.Erro, "Usar Downloads", () => _ = UsarPastaPadraoAsync());
             AtualizarStatus();
         }
@@ -1349,8 +1631,10 @@ public partial class MainWindow : Window
             : _modoLista && listaPronta ? (IconeOk, "Baixadas", false)
             : _modoLista ? (IconeBaixar, pendentes switch { 0 => "Marque as músicas", 1 => "Baixar 1 música", _ => $"Baixar {pendentes} músicas" }, pendentes > 0 && _lista is not null)
             : _baixada ? (IconeOk, "Baixada", false)
+            : _procurando ? (IconeBaixar, "Procurando…", false)
             : _video is null ? (IconeBaixar, "Baixar", false)
             : !_prontos ? (IconeBaixar, _preparando ? "Aguarde o preparo" : "Baixar", false)
+            : _semAudio ? (IconeBaixar, "Baixar", false)
             // Espera a análise para que a escolha de formato seja a definitiva.
             : _analisando ? (IconeBaixar, "Lendo o áudio…", false)
             : (IconeBaixar, "Baixar", true);
@@ -1391,12 +1675,16 @@ public partial class MainWindow : Window
         if (aviso is not null)
             MostrarStatus(aviso.Texto, aviso.Tom, acao: aviso.Acao, aoClicar: aviso.AoClicar, detalhe: aviso.Detalhe);
         else if (_modoLista && _lista is not null)
-            MostrarStatus(Formatos.ExplicarLista(OpcaoAtual),
-                acao: _link?.VideoId is not null ? "Só esta música" : null, aoClicar: VoltarAoVideo);
+            MostrarStatus(_link is LinkCatalogo ? Formatos.ExplicarCatalogo(OpcaoAtual) : Formatos.ExplicarLista(OpcaoAtual, NomeFonte),
+                acao: LinkYt?.VideoId is not null ? "Só esta música" : null, aoClicar: VoltarAoVideo);
+        else if (_video is not null && _audio is not null && _achada is { } achada)
+            MostrarStatus(Formatos.Explicar(OpcaoAtual, _audio, NomeFonte), acao: "Ouvir no YouTube", aoClicar: () => AbrirArquivo(achada.UrlMusic));
         else if (_video is not null && _audio is not null)
-            MostrarStatus(Formatos.Explicar(OpcaoAtual, _audio),
-                acao: _link?.ListaId is not null ? "Playlist inteira" : null, aoClicar: AbrirPlaylistDoLink);
-        else if (_video is not null && _link?.ListaId is not null)
+            MostrarStatus(Formatos.Explicar(OpcaoAtual, _audio, NomeFonte),
+                acao: LinkYt?.ListaId is not null ? "Playlist inteira" : null, aoClicar: AbrirPlaylistDoLink);
+        else if (_procurando)
+            MostrarStatus("Procurando a mesma gravação no YouTube Music…");
+        else if (_video is not null && LinkYt?.ListaId is not null)
             MostrarStatus("Esse link também tem uma playlist.", acao: "Playlist inteira", aoClicar: AbrirPlaylistDoLink);
         else
             MostrarStatus("");
@@ -1457,7 +1745,10 @@ public partial class MainWindow : Window
         var (texto, cor) = _nome.Origem switch
         {
             OrigemNome.Oficial => ("Dados oficiais do YouTube", "Sucesso"),
+            OrigemNome.Catalogo => ($"Dados oficiais do {NomeCatalogo}", "Sucesso"),
+            OrigemNome.Titulo when _link is LinkSoundCloud => ("Separado do título da faixa · clique para corrigir", "TextoApagado"),
             OrigemNome.Titulo => ("Separado do título do vídeo · clique para corrigir", "TextoApagado"),
+            OrigemNome.Canal when _link is LinkSoundCloud => ("Artista = quem publicou · clique para corrigir", "TextoApagado"),
             OrigemNome.Canal => ("Artista = nome do canal · clique para corrigir", "TextoApagado"),
             _ => ("Editado por você", "TextoSuave"),
         };
@@ -1480,11 +1771,11 @@ public partial class MainWindow : Window
         MostrarOrigem();
     }
 
-    private void GravarEtiquetas(string arquivo, NomeMusica nome, int? faixa)
+    private void GravarEtiquetas(string arquivo, NomeMusica nome, int? faixa, byte[]? capa = null)
     {
         try
         {
-            Etiquetas.Gravar(arquivo, nome, faixa);
+            Etiquetas.Gravar(arquivo, nome, faixa, capa);
         }
         catch (Exception erro)
         {
@@ -1674,8 +1965,16 @@ public partial class MainWindow : Window
         ]}
         """;
 
+    private const string JsonSoundCloudDeExemplo = """
+        {"id": "47127625", "title": "The Royal Concept - Gimme Twice", "uploader": "The Royal Concept", "duration": 205.3,
+         "extractor_key": "Soundcloud", "formats": [
+          {"format_id": "hls_opus_0_0", "ext": "opus", "acodec": "opus", "vcodec": "none", "abr": 64, "quality": -1},
+          {"format_id": "hls_aac_160k", "ext": "m4a", "acodec": "mp4a.40.2", "vcodec": "none", "abr": 160, "asr": 44100, "quality": 0}
+        ]}
+        """;
+
     /// <summary>
-    /// Faixa.exe --capturas &lt;pasta&gt; desenha cada estado da tela em PNG e fecha.
+    /// RDTrackDownloader.exe --capturas &lt;pasta&gt; desenha cada estado da tela em PNG e fecha.
     /// Não baixa componentes nem músicas; só busca a prévia de um vídeo para ter capa real.
     /// </summary>
     private async Task GerarCapturasAsync()
@@ -1738,6 +2037,7 @@ public partial class MainWindow : Window
             for (var i = 0; i < 150 && _idCarregando is not null; i++)
                 await Task.Delay(100);
             await Salvar("4-previa");
+            var capaReal = _video?.Capa;
 
             // Análise com um JSON no formato do yt-dlp -J: Opus 129,5 e AAC 129,6 na mesma faixa
             // de qualidade (deve vencer o Opus), uma versão DRC e formatos de vídeo (devem sumir).
@@ -1839,7 +2139,97 @@ public partial class MainWindow : Window
 
             BotaoAtualizarTexto.Text = "Versão 1.2";
             BotaoAtualizar.Visibility = Visibility.Visible;
+            BotaoSobreTexto.Visibility = Visibility.Collapsed;
             await Salvar("18-versao-nova");
+            BotaoAtualizar.Visibility = Visibility.Collapsed;
+            BotaoSobreTexto.Visibility = Visibility.Visible;
+            _avisoResultado = null;
+
+            // Outras plataformas, pelo caminho normal da janela (dados reais dos serviços).
+            // Só a análise do áudio usa JSON de exemplo: nas capturas o yt-dlp não roda.
+            async Task Esperar(Func<bool> pronto)
+            {
+                for (var i = 0; i < 300 && !pronto(); i++)
+                    await Task.Delay(100);
+            }
+            var registro = new List<string>();
+
+            DefinirLink("https://open.spotify.com/artist/0gxyHStUsqpMadRV0Di1Qt");
+            await Salvar("19-link-de-artista");
+
+            DefinirLink("https://open.spotify.com/track/4PTG3Z6ehGkBFwjybzWkR8?si=capturas");
+            await Esperar(() => _faixaCatalogo is not null || _avisoLink is not null);
+            await Salvar("20-spotify-procurando");
+            await Esperar(() => !_procurando && _idCarregando is null);
+            registro.Add($"spotify: nome={_nome} achada={_achada} falha={_falhaBusca} aviso={_avisoLink?.Texto}");
+            _audio = Analisador.Interpretar(JsonDeExemplo);
+            MontarOpcoes();
+            MostrarFonte();
+            AtualizarBotao();
+            AtualizarStatus();
+            registro.Add($"dica da fonte: {Fonte.ToolTip}");
+            await Salvar("21-spotify-achada");
+
+            // Sem resultado confiável (estado montado à mão: toda música real acaba achada).
+            _video = null;
+            _audio = null;
+            _achada = null;
+            _falhaBusca = "Não achei essa gravação no YouTube Music.";
+            _avisoAnalise = new Aviso("Não achei essa gravação no YouTube Music, com o mesmo artista e duração.", Tom.Erro, "Ver a busca");
+            MontarOpcoes();
+            MostrarFonte();
+            AtualizarBotao();
+            AtualizarStatus();
+            await Salvar("22-spotify-nao-achou");
+
+            DefinirLink("https://www.deezer.com/br/album/302127");
+            await Esperar(() => _lista is not null || _falhaLista);
+            await Task.Delay(1500); // capa
+            registro.Add($"deezer: {ListaTipo.Text} | {ListaTitulo.Text} | {ListaResumo.Text} | {_faixas.Count} faixas");
+            await Salvar("23-deezer-album");
+
+            DefinirLink("https://open.spotify.com/playlist/5Rrf7mqN8uus2AaQQQNdc1");
+            await Esperar(() => _lista is not null || _falhaLista);
+            await Task.Delay(1500);
+            registro.Add($"spotify playlist: {ListaTipo.Text} | {ListaTitulo.Text} | {ListaResumo.Text} | dica: {ListaResumo.ToolTip}");
+            await Salvar("24-spotify-playlist");
+
+            _baixando = true;
+            _opcaoEmAndamento = OpcaoAtual;
+            AtualizarSelecao();
+            _faixas[0].Estado = EstadoFaixa.Pronta;
+            _faixas[0].Detalhe = "Opus 129 kbps → MP3 320 kbps" + Environment.NewLine + "Do YouTube Music: Knockin' On Heaven's Door · Bob Dylan · 2:30";
+            _faixas[1].Estado = EstadoFaixa.Baixando;
+            MostrarProgressoLista(_faixas[1], 1, _faixas.Count, new Progresso(Fase.Procurando));
+            await Salvar("25-spotify-playlist-procurando");
+            _baixando = false;
+
+            DefinirLink("https://soundcloud.com/the-concept-band/sets/the-royal-concept-ep");
+            await Esperar(() => _lista is not null || _falhaLista);
+            await Task.Delay(1500);
+            registro.Add($"soundcloud set: {ListaTipo.Text} | {ListaTitulo.Text} | {ListaResumo.Text} | " +
+                         string.Join(" / ", _faixas.Select(f => $"{f.Numero}:{f.Musica}:{f.Item.Disponivel}")));
+            await Salvar("26-soundcloud-set");
+
+            DefinirLink("https://soundcloud.com/the-concept-band/gimme-twice-mastered");
+            await Esperar(() => _video is not null || _avisoLink is not null);
+            _audio = Analisador.Interpretar(JsonSoundCloudDeExemplo);
+            if (!_nomeEditado && _audio?.Dados is { } dadosSc)
+                DefinirNome(Metadados.Resolver(dadosSc));
+            MontarOpcoes();
+            MostrarFonte();
+            AtualizarBotao();
+            AtualizarStatus();
+            registro.Add($"soundcloud faixa: nome={_nome} status={StatusTexto.Text}");
+            await Salvar("27-soundcloud-faixa");
+
+            AbrirSobre();
+            await Salvar("28-sobre");
+            CopiarEmail_Click(this, new RoutedEventArgs());
+            await Salvar("29-sobre-email-copiado");
+            FecharSobre();
+
+            File.WriteAllLines(Path.Combine(pasta, "plataformas.txt"), registro);
         }
         catch (Exception erro)
         {

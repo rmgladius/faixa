@@ -19,10 +19,11 @@ public sealed class FaixaDaLista : INotifyPropertyChanged
     public FaixaDaLista(ItemLista item)
     {
         Item = item;
-        _nome = Metadados.Resolver(new DadosMusica(item.Titulo, item.Canal));
+        // Spotify e Deezer já dão o nome oficial; no YouTube e no SoundCloud, o título é interpretado.
+        _nome = item.Catalogo is { } oficial ? Catalogo.Nome(oficial) : Metadados.Resolver(new DadosMusica(item.Titulo, item.Canal));
         _estado = item.Disponivel ? EstadoFaixa.Aguardando : EstadoFaixa.Indisponivel;
         _selecionada = item.Disponivel;
-        _detalhe = item.Disponivel ? null : "Vídeo privado ou apagado: não dá para baixar.";
+        _detalhe = item.Disponivel ? null : item.Motivo ?? "Vídeo privado ou apagado: não dá para baixar.";
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;

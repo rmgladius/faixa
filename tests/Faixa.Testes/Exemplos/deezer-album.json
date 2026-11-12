@@ -1,0 +1,107 @@
+{
+ "id": 302127,
+ "title": "Discovery",
+ "link": "https://www.deezer.com/album/302127",
+ "cover_xl": "https://cdn-images.dzcdn.net/images/cover/5718f7c81c27e0b2417e2a4c45224f8a/1000x1000-000000-80-0-0.jpg",
+ "release_date": "2001-03-07",
+ "record_type": "album",
+ "nb_tracks": 14,
+ "tracklist": "https://api.deezer.com/album/302127/tracks",
+ "artist": {
+  "id": 27,
+  "name": "Daft Punk"
+ },
+ "type": "album",
+ "tracks": {
+  "data": [
+   {
+    "id": 3135553,
+    "readable": true,
+    "title": "One More Time",
+    "title_short": "One More Time",
+    "title_version": "",
+    "link": "https://www.deezer.com/track/3135553",
+    "duration": 320,
+    "artist": {
+     "id": 27,
+     "name": "Daft Punk",
+     "type": "artist"
+    },
+    "album": {
+     "id": 302127,
+     "title": "Discovery",
+     "cover_xl": "https://cdn-images.dzcdn.net/images/cover/5718f7c81c27e0b2417e2a4c45224f8a/1000x1000-000000-80-0-0.jpg",
+     "cover_big": "https://cdn-images.dzcdn.net/images/cover/5718f7c81c27e0b2417e2a4c45224f8a/500x500-000000-80-0-0.jpg",
+     "type": "album"
+    },
+    "type": "track"
+   },
+   {
+    "id": 3135554,
+    "readable": true,
+    "title": "Aerodynamic",
+    "title_short": "Aerodynamic",
+    "title_version": "",
+    "link": "https://www.deezer.com/track/3135554",
+    "duration": 212,
+    "artist": {
+     "id": 27,
+     "name": "Daft Punk",
+     "type": "artist"
+    },
+    "album": {
+     "id": 302127,
+     "title": "Discovery",
+     "cover_xl": "https://cdn-images.dzcdn.net/images/cover/5718f7c81c27e0b2417e2a4c45224f8a/1000x1000-000000-80-0-0.jpg",
+     "cover_big": "https://cdn-images.dzcdn.net/images/cover/5718f7c81c27e0b2417e2a4c45224f8a/500x500-000000-80-0-0.jpg",
+     "type": "album"
+    },
+    "type": "track"
+   },
+   {
+    "id": 3135555,
+    "readable": true,
+    "title": "Digital Love",
+    "title_short": "Digital Love",
+    "title_version": "",
+    "link": "https://www.deezer.com/track/3135555",
+    "duration": 301,
+    "artist": {
+     "id": 27,
+     "name": "Daft Punk",
+     "type": "artist"
+    },
+    "album": {
+     "id": 302127,
+     "title": "Discovery",
+     "cover_xl": "https://cdn-images.dzcdn.net/images/cover/5718f7c81c27e0b2417e2a4c45224f8a/1000x1000-000000-80-0-0.jpg",
+     "cover_big": "https://cdn-images.dzcdn.net/images/cover/5718f7c81c27e0b2417e2a4c45224f8a/500x500-000000-80-0-0.jpg",
+     "type": "album"
+    },
+    "type": "track"
+   },
+   {
+    "id": 3135556,
+    "readable": true,
+    "title": "Harder, Better, Faster, Stronger",
+    "title_short": "Harder, Better, Faster, Stronger",
+    "title_version": "",
+    "link": "https://www.deezer.com/track/3135556",
+    "duration": 226,
+    "artist": {
+     "id": 27,
+     "name": "Daft Punk",
+     "type": "artist"
+    },
+    "album": {
+     "id": 302127,
+     "title": "Discovery",
+     "cover_xl": "https://cdn-images.dzcdn.net/images/cover/5718f7c81c27e0b2417e2a4c45224f8a/1000x1000-000000-80-0-0.jpg",
+     "cover_big": "https://cdn-images.dzcdn.net/images/cover/5718f7c81c27e0b2417e2a4c45224f8a/500x500-000000-80-0-0.jpg",
+     "type": "album"
+    },
+    "type": "track"
+   }
+  ]
+ }
+}

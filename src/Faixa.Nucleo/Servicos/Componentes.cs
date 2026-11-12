@@ -7,14 +7,50 @@ using System.Text;
 namespace Faixa.Servicos;
 
 /// <summary>
-/// Cuida dos três programas que fazem o trabalho pesado, baixados na primeira vez que o Faixa abre:
+/// Cuida dos três programas que fazem o trabalho pesado, baixados na primeira vez que o app abre:
 /// yt-dlp (busca o áudio no YouTube), FFmpeg (converte para MP3 e grava a capa) e
 /// Deno (o yt-dlp precisa dele desde 2025 para decifrar as assinaturas do YouTube).
 /// </summary>
 public static class Componentes
 {
-    public static readonly string PastaApp =
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Faixa");
+    private static readonly string Locais = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+
+    public static readonly string PastaApp = Path.Combine(Locais, Programa.Nome);
+
+    /// <summary>Pasta interna até a versão 1.1, quando o programa se chamava Faixa.</summary>
+    private static readonly string PastaAntiga = Path.Combine(Locais, "Faixa");
+
+    /// <summary>
+    /// Traz para a pasta nova o que estava na antiga (componentes, configuração, músicas por entregar),
+    /// para ninguém baixar 160 MB de novo nem perder a pasta escolhida. O que já existe na nova fica.
+    /// </summary>
+    public static void TrazerPastaAntiga() => TrazerPasta(PastaAntiga, PastaApp);
+
+    internal static void TrazerPasta(string antiga, string nova)
+    {
+        if (!Directory.Exists(antiga))
+            return;
+        try
+        {
+            Directory.CreateDirectory(nova);
+            foreach (var origem in Directory.EnumerateFileSystemEntries(antiga).ToList())
+            {
+                var destino = Path.Combine(nova, Path.GetFileName(origem));
+                if (Path.Exists(destino))
+                    continue;
+                if (Directory.Exists(origem))
+                    Directory.Move(origem, destino);
+                else
+                    File.Move(origem, destino);
+            }
+            if (!Directory.EnumerateFileSystemEntries(antiga).Any())
+                Directory.Delete(antiga);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            // Algo em uso: o que não veio é baixado de novo quando fizer falta.
+        }
+    }
 
     public static string PastaBin => Path.Combine(PastaApp, "bin");
     public static string PastaTemp => Path.Combine(PastaApp, "temp");

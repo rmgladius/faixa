@@ -6,7 +6,7 @@ namespace Faixa.Servicos;
 /// <summary>
 /// Acesso controlado a pastas (proteção contra ransomware do Windows Defender). Quando ligado,
 /// só apps permitidos gravam em Documentos, Músicas, Imagens etc. Programa novo e sem assinatura
-/// digital, como o Faixa, fica de fora. Por isso a pasta padrão do Faixa é Downloads › Músicas.
+/// digital, como este app, fica de fora. Por isso a pasta padrão é Downloads › Músicas.
 /// </summary>
 public static class AcessoControlado
 {

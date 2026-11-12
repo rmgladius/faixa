@@ -8,7 +8,7 @@ using Faixa.Servicos;
 namespace Faixa;
 
 /// <summary>
-/// Faixa.exe --demo &lt;pasta&gt;: monta a animação do README quadro a quadro, com músicas e capas
+/// RDTrackDownloader.exe --demo &lt;pasta&gt;: monta a animação do README quadro a quadro, com músicas e capas
 /// fictícias (pasta\capas\capaN.jpg, geradas por docs/fonte/capas.py) e sem acessar a rede.
 /// Grava NNN.png, popup.png e quadros.txt ("nome duração_ms marca"), lidos por docs/fonte/montar.py.
 /// </summary>

@@ -20,7 +20,7 @@ public sealed class OpcaoFormato
     /// <summary>Taxa do MP3 de saída; 0 nas opções sem conversão.</summary>
     public int Kbps { get; init; }
 
-    /// <summary>Salva o áudio do YouTube como está (.opus ou .m4a), sem converter.</summary>
+    /// <summary>Salva o áudio de origem como está (.opus ou .m4a), sem converter.</summary>
     public bool SemConversao { get; init; }
 
     /// <summary>O formato exato a pedir, quando a análise do vídeo já disse qual é. Null = o melhor que houver.</summary>
@@ -49,7 +49,8 @@ public static class Formatos
     /// Playlist (<paramref name="duracaoLista"/> informado): MP3 com o tamanho total e um original genérico,
     /// porque a qualidade de cada faixa só se conhece ao baixá-la.
     /// </summary>
-    public static List<OpcaoFormato> Montar(InfoAudio? audio, double? duracaoLista = null)
+    /// <param name="fonte">De onde vem o áudio: "YouTube", "YouTube Music" ou "SoundCloud".</param>
+    public static List<OpcaoFormato> Montar(InfoAudio? audio, double? duracaoLista = null, string fonte = "YouTube")
     {
         var playlist = duracaoLista is not null;
         var duracao = playlist ? duracaoLista : audio?.Duracao;
@@ -69,7 +70,7 @@ public static class Formatos
             lista.Add(new OpcaoFormato
             {
                 Chave = OriginalGenerico,
-                Titulo = "Original · melhor do YouTube",
+                Titulo = $"Original · melhor do {fonte}",
                 Curto = "Original",
                 Detalhe = "Sem conversão · .opus ou .m4a, o que houver",
                 SemConversao = true,
@@ -104,25 +105,30 @@ public static class Formatos
         ?? (chave?.StartsWith("original-") == true ? opcoes.FirstOrDefault(o => o.SemConversao) : null)
         ?? opcoes.First(o => o.Chave == Padrao);
 
-    /// <summary>A frase honesta sobre a escolha: o que o YouTube tem e o que a conversão faz com isso.</summary>
-    public static string Explicar(OpcaoFormato opcao, InfoAudio audio)
+    /// <summary>A frase honesta sobre a escolha: o que a fonte tem e o que a conversão faz com isso.</summary>
+    public static string Explicar(OpcaoFormato opcao, InfoAudio audio, string fonte = "YouTube")
     {
         if (opcao.SemConversao)
         {
             var o = opcao.Original ?? audio.Melhor;
-            return $"Sem conversão: o arquivo .{opcao.Extensao} é o próprio áudio do YouTube, {o.Nome} {o.KbpsTexto}.";
+            return $"Sem conversão: o arquivo .{opcao.Extensao} é o próprio áudio do {fonte}, {o.Nome} {o.KbpsTexto}.";
         }
 
-        var fonte = audio.Melhor;
-        return opcao.Kbps > fonte.Kbps
-            ? $"O YouTube tem {fonte.Nome} {fonte.KbpsTexto}. Um MP3 de {opcao.Kbps} kbps não fica melhor que isso, só perde menos na conversão."
-            : $"O YouTube tem {fonte.Nome} {fonte.KbpsTexto}. Converter para MP3 de {opcao.Kbps} kbps perde um pouco de qualidade.";
+        var melhor = audio.Melhor;
+        return opcao.Kbps > melhor.Kbps
+            ? $"O {fonte} tem {melhor.Nome} {melhor.KbpsTexto}. Um MP3 de {opcao.Kbps} kbps não fica melhor que isso, só perde menos na conversão."
+            : $"O {fonte} tem {melhor.Nome} {melhor.KbpsTexto}. Converter para MP3 de {opcao.Kbps} kbps perde um pouco de qualidade.";
     }
 
     /// <summary>Versão para playlist: a qualidade de cada faixa só aparece quando ela termina.</summary>
-    public static string ExplicarLista(OpcaoFormato opcao) => opcao.SemConversao
-        ? "Sem conversão: cada arquivo é o próprio áudio do YouTube (.opus ou .m4a)."
+    public static string ExplicarLista(OpcaoFormato opcao, string fonte = "YouTube") => opcao.SemConversao
+        ? $"Sem conversão: cada arquivo é o próprio áudio do {fonte} (.opus ou .m4a)."
         : $"Cada faixa vira MP3 {opcao.Kbps} kbps. A qualidade de origem aparece nela ao terminar.";
+
+    /// <summary>Lista do Spotify ou do Deezer: o áudio de cada música é procurado na hora de baixar.</summary>
+    public static string ExplicarCatalogo(OpcaoFormato opcao) => opcao.SemConversao
+        ? "Cada música é procurada no YouTube Music e salva sem conversão (.opus ou .m4a)."
+        : $"Cada música é procurada no YouTube Music e vira MP3 {opcao.Kbps} kbps.";
 
     public static string Duracao(double segundos)
     {

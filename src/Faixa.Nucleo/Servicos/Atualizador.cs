@@ -11,16 +11,16 @@ public sealed record VersaoNova(Version Versao, string Notas, string Download, l
 }
 
 /// <summary>
-/// Procura versão nova no GitHub Releases do Faixa, baixa e confere o SHA-256 antes de trocar o .exe.
+/// Procura versão nova no GitHub Releases, baixa e confere o SHA-256 antes de trocar o .exe.
 /// Só olha a release marcada como "latest" (pré-lançamentos ficam de fora).
 /// </summary>
 public static class Atualizador
 {
     /// <summary>Repositório (dono/nome) onde as versões são publicadas.</summary>
-    public const string Repositorio = "rmgladius/faixa";
+    public const string Repositorio = Programa.Repositorio;
 
     /// <summary>Nome do arquivo baixado: o .exe autossuficiente, que roda em qualquer Windows 10/11 de 64 bits.</summary>
-    public const string Arquivo = "Faixa.exe";
+    public const string Arquivo = Programa.Executavel;
 
     public static Version VersaoAtual => Normalizar(typeof(Atualizador).Assembly.GetName().Version ?? new Version(0, 0, 0));
 
@@ -39,7 +39,7 @@ public static class Atualizador
         if (nova is null || nova.Versao <= VersaoAtual)
             return null;
 
-        // Sem "digest" no asset (releases antigas do GitHub), procura um Faixa.exe.sha256 ao lado.
+        // Sem "digest" no asset (releases antigas do GitHub), procura um .sha256 ao lado.
         if (nova.Sha256 is null && nova.Download.Length > 0)
         {
             try
@@ -57,7 +57,10 @@ public static class Atualizador
         return nova;
     }
 
-    /// <summary>Lê a resposta de /releases/latest. Null se a release não tiver o Faixa.exe.</summary>
+    /// <summary>
+    /// Lê a resposta de /releases/latest. Prefere o .exe com o nome atual e aceita o antigo (Faixa.exe).
+    /// Null se a release não tiver nenhum dos dois.
+    /// </summary>
     public static VersaoNova? Interpretar(string json)
     {
         using var doc = JsonDocument.Parse(json);
@@ -67,9 +70,11 @@ public static class Atualizador
         if (!raiz.TryGetProperty("assets", out var assets) || assets.ValueKind != JsonValueKind.Array)
             return null;
 
-        foreach (var a in assets.EnumerateArray())
+        var lista = assets.EnumerateArray().ToList();
+        foreach (var nome in new[] { Arquivo, Programa.ExecutavelAntigo })
+        foreach (var a in lista)
         {
-            if (!string.Equals(Analisador.Texto(a, "name"), Arquivo, StringComparison.OrdinalIgnoreCase))
+            if (!string.Equals(Analisador.Texto(a, "name"), nome, StringComparison.OrdinalIgnoreCase))
                 continue;
             var digest = Analisador.Texto(a, "digest");
             return new VersaoNova(
@@ -95,7 +100,7 @@ public static class Atualizador
     public static async Task<string> BaixarAsync(VersaoNova nova, IProgress<double> progresso, CancellationToken ct)
     {
         Directory.CreateDirectory(Componentes.PastaTemp);
-        var destino = Path.Combine(Componentes.PastaTemp, $"Faixa-{nova.Texto}.exe");
+        var destino = Path.Combine(Componentes.PastaTemp, $"{Path.GetFileNameWithoutExtension(Arquivo)}-{nova.Texto}.exe");
         var parte = destino + ".part";
 
         using (var resp = await YouTube.Http.GetAsync(nova.Download, HttpCompletionOption.ResponseHeadersRead, ct))
@@ -138,7 +143,7 @@ public static class Atualizador
     /// </summary>
     public static string Instalar(string novoExe)
     {
-        var atual = Environment.ProcessPath ?? throw new InvalidOperationException("Não sei onde o Faixa está instalado.");
+        var atual = Environment.ProcessPath ?? throw new InvalidOperationException("Não sei onde o programa está instalado.");
         var antigo = atual + ".old";
         if (File.Exists(antigo))
             File.Delete(antigo);
@@ -149,7 +154,7 @@ public static class Atualizador
         }
         catch
         {
-            File.Move(antigo, atual); // desfaz: o Faixa continua na versão de antes
+            File.Move(antigo, atual); // desfaz: continua na versão de antes
             throw;
         }
         return atual;

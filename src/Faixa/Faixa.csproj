@@ -6,11 +6,13 @@
     <UseWPF>true</UseWPF>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <AssemblyName>Faixa</AssemblyName>
+    <!-- O código continua no namespace Faixa; o programa se chama RD Track Downloader. -->
+    <AssemblyName>RDTrackDownloader</AssemblyName>
+    <AssemblyTitle>RD Track Downloader</AssemblyTitle>
     <RootNamespace>Faixa</RootNamespace>
     <ApplicationIcon>Assets\faixa.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <Description>Baixa músicas do YouTube em MP3 ou no formato original</Description>
+    <Description>Baixa músicas e playlists do YouTube, do SoundCloud, do Spotify e do Deezer</Description>
   </PropertyGroup>
 
   <ItemGroup>

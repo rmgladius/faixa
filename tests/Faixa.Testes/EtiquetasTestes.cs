@@ -44,4 +44,25 @@ public class EtiquetasTestes : IDisposable
 
         Assert.Equal("Álbum do yt-dlp", Etiquetas.Ler(mp3).Album);
     }
+
+    [Fact]
+    public void Capa_oficial_substitui_a_do_video_e_sem_ela_a_do_video_fica()
+    {
+        var mp3 = CriarMp3();
+        byte[] DeTamanho(int n)
+        {
+            var b = new byte[n];
+            b[0] = 0xFF; b[1] = 0xD8; b[2] = 0xFF; // começo de JPEG
+            return b;
+        }
+
+        Etiquetas.Gravar(mp3, new NomeMusica("A", "B", null, null, OrigemNome.Oficial), capa: DeTamanho(3000));
+        Assert.Equal(3000, Etiquetas.TamanhoDaCapa(mp3));
+
+        Etiquetas.Gravar(mp3, new NomeMusica("A", "B", null, null, OrigemNome.Catalogo), capa: DeTamanho(5000));
+        Assert.Equal(5000, Etiquetas.TamanhoDaCapa(mp3));
+
+        Etiquetas.Gravar(mp3, new NomeMusica("A", "B", null, null, OrigemNome.Titulo));
+        Assert.Equal(5000, Etiquetas.TamanhoDaCapa(mp3));
+    }
 }

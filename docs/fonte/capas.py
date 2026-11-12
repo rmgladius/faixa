@@ -1,4 +1,4 @@
-"""Capas fictícias (1280x720, arte no quadrado central) para a demonstração do Faixa.
+"""Capas fictícias (1280x720, arte no quadrado central) para a demonstração do app.
 
 Uso: python3 docs/fonte/capas.py <pasta de saída>
 """

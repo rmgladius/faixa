@@ -14,8 +14,8 @@ public sealed record FormatoFonte(string Id, string Codec, double Kbps, int? Hz,
     public string? KhzTexto => Hz is int hz ? $"{(hz / 1000.0).ToString("0.#", CultureInfo.GetCultureInfo("pt-BR"))} kHz" : null;
 }
 
-/// <summary>O que o YouTube tem de áudio para um vídeo.</summary>
-/// <param name="Melhor">O de maior taxa no idioma original; é o que o Faixa baixa para converter.</param>
+/// <summary>O que o YouTube (ou o SoundCloud) tem de áudio para um link.</summary>
+/// <param name="Melhor">O de maior taxa no idioma original; é o que o app baixa para converter.</param>
 /// <param name="Originais">O melhor de cada codec que dá para salvar sem conversão (Opus e AAC).</param>
 /// <param name="Dados">Título, canal e, quando o YouTube informa, artista, faixa e álbum oficiais.</param>
 public sealed record InfoAudio(double? Duracao, FormatoFonte Melhor, IReadOnlyList<FormatoFonte> Originais, DadosMusica? Dados = null);
@@ -27,11 +27,11 @@ public sealed record InfoAudio(double? Duracao, FormatoFonte Melhor, IReadOnlyLi
 /// </summary>
 public static class Analisador
 {
-    public static async Task<InfoAudio> AnalisarAsync(string id, CancellationToken ct)
+    public static async Task<InfoAudio> AnalisarAsync(string url, CancellationToken ct)
     {
         using var proc = new Process
         {
-            StartInfo = Componentes.ProcessoYtDlp([.. Componentes.ArgumentosBase, "-J", "--", YouTube.UrlDoVideo(id)]),
+            StartInfo = Componentes.ProcessoYtDlp([.. Componentes.ArgumentosBase, "-J", "--", url]),
         };
         proc.Start();
         var saida = proc.StandardOutput.ReadToEndAsync(CancellationToken.None);
@@ -47,9 +47,26 @@ public static class Analisador
         if (proc.ExitCode != 0 || string.IsNullOrWhiteSpace(json))
             throw Baixador.Traduzir((await erros).Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
 
-        return Interpretar(json)
-               ?? throw new ErroDownload(TipoErro.Indisponivel, "O YouTube não ofereceu áudio para esse vídeo.", "");
+        return Interpretar(json) ?? throw SemAudio(json);
     }
+
+    /// <summary>Por que não há áudio: só trechos de 30 s (SoundCloud Go+) ou nada mesmo.</summary>
+    internal static ErroDownload SemAudio(string json)
+    {
+        using var doc = JsonDocument.Parse(json);
+        var raiz = doc.RootElement;
+        var trechos = raiz.TryGetProperty("formats", out var formatos) && formatos.ValueKind == JsonValueKind.Array
+                      && formatos.EnumerateArray().Any(EhTrecho);
+        if (trechos)
+            return new ErroDownload(TipoErro.Previa, SoundCloud.AvisoGoPlus, "");
+        return Texto(raiz, "extractor_key") == "Soundcloud"
+            ? new ErroDownload(TipoErro.Indisponivel, "O SoundCloud não ofereceu áudio para essa faixa.", "")
+            : new ErroDownload(TipoErro.Indisponivel, "O YouTube não ofereceu áudio para esse vídeo.", "");
+    }
+
+    // Trecho de 30 s que o SoundCloud mostra das faixas do Go+ (formato "..._preview").
+    private static bool EhTrecho(JsonElement f) =>
+        (Texto(f, "format_id") ?? "").EndsWith("_preview", StringComparison.Ordinal);
 
     /// <summary>Lê o JSON do yt-dlp -J. Devolve null se não houver nenhum formato de áudio utilizável.</summary>
     public static InfoAudio? Interpretar(string json)
@@ -59,11 +76,14 @@ public static class Analisador
         if (!raiz.TryGetProperty("formats", out var formatos) || formatos.ValueKind != JsonValueKind.Array)
             return null;
 
+        var duracao = Numero(raiz, "duration");
         var candidatos = new List<(FormatoFonte Formato, double Idioma, double Qualidade)>();
         foreach (var f in formatos.EnumerateArray())
         {
             // Só áudio puro: os formatos com vídeo junto são de qualidade de áudio menor.
-            if (Texto(f, "vcodec") != "none" || Texto(f, "acodec") is null or "none")
+            // O arquivo original do SoundCloud (WAV, FLAC...) vem sem acodec: o codec é a extensão.
+            var acodec = Texto(f, "acodec") ?? CodecDaExtensao(Texto(f, "ext"));
+            if (Texto(f, "vcodec") != "none" || acodec is null or "none" || EhTrecho(f))
                 continue;
 
             var id = Texto(f, "format_id") ?? "";
@@ -75,12 +95,13 @@ public static class Analisador
                 || Verdadeiro(f, "has_drm"))
                 continue;
 
-            var kbps = Numero(f, "abr") ?? Numero(f, "tbr");
+            var bytes = Numero(f, "filesize") ?? Numero(f, "filesize_approx");
+            var kbps = Numero(f, "abr") ?? Numero(f, "tbr")
+                       ?? (bytes is double tamanho && duracao is double s and > 0 ? tamanho * 8 / s / 1000 : null);
             if (kbps is not > 0)
                 continue;
 
-            var bytes = Numero(f, "filesize") ?? Numero(f, "filesize_approx");
-            var formato = new FormatoFonte(id, NormalizarCodec(Texto(f, "acodec")!), kbps.Value,
+            var formato = new FormatoFonte(id, NormalizarCodec(acodec), kbps.Value,
                 Numero(f, "asr") is double hz ? (int)hz : null,
                 bytes is double b ? (long)b : null);
 
@@ -109,12 +130,31 @@ public static class Analisador
             .Select(g => g.First())
             .ToList();
 
-        return new InfoAudio(Numero(raiz, "duration"), doIdioma[0], originais, LerDados(raiz));
+        return new InfoAudio(duracao, doIdioma[0], originais, LerDados(raiz));
     }
+
+    private static string? CodecDaExtensao(string? ext) => ext switch
+    {
+        "mp3" or "opus" or "flac" or "wav" or "aiff" => ext,
+        "m4a" or "aac" => "aac",
+        "ogg" => "vorbis",
+        _ => null,
+    };
 
     /// <summary>Campos de música do yt-dlp (-J ou o JSON do --print do download).</summary>
     public static DadosMusica LerDados(JsonElement e)
     {
+        // No SoundCloud, "track" é só uma cópia do título ("Artista - Música" inteiro), e o artista
+        // de verdade, quando a gravadora informa, vem em "artists". O título é interpretado como no YouTube.
+        if (Texto(e, "extractor_key") == "Soundcloud")
+        {
+            var artista = e.TryGetProperty("artists", out var lista0) && lista0.ValueKind == JsonValueKind.Array
+                ? lista0.EnumerateArray().Where(a => a.ValueKind == JsonValueKind.String).Select(a => a.GetString()!.Trim()).FirstOrDefault(a => a.Length > 0)
+                : null;
+            return new DadosMusica(Texto(e, "title") ?? "", artista ?? Texto(e, "uploader") ?? "", Album: Texto(e, "album"),
+                Ano: Numero(e, "release_year") is double a0 ? (int)a0 : null);
+        }
+
         string? artistas = null;
         if (e.TryGetProperty("artists", out var lista) && lista.ValueKind == JsonValueKind.Array)
             artistas = string.Join(", ", lista.EnumerateArray()
@@ -135,7 +175,7 @@ public static class Analisador
 
     private static int PesoDoCodec(string codec) => codec switch
     {
-        "flac" or "alac" => 6,
+        "wav" or "aiff" or "flac" or "alac" => 6,
         "opus" => 5,
         "vorbis" => 4,
         "aac" => 3,
@@ -156,6 +196,9 @@ public static class Analisador
         "aac" => "AAC",
         "vorbis" => "Vorbis",
         "flac" => "FLAC",
+        "wav" => "WAV",
+        "aiff" => "AIFF",
+        "alac" => "ALAC",
         "mp3" => "MP3",
         "ec-3" => "Dolby E-AC-3",
         "ac-3" => "Dolby AC-3",

@@ -16,8 +16,11 @@ public enum OrigemNome
     /// <summary>Título do vídeo limpo, com o nome do canal como artista.</summary>
     Canal,
 
-    /// <summary>Digitados por quem usa o Faixa.</summary>
+    /// <summary>Digitados por quem usa o app.</summary>
     Editado,
+
+    /// <summary>Do Spotify ou do Deezer: nome, artistas e álbum oficiais da música.</summary>
+    Catalogo,
 }
 
 /// <summary>O que o YouTube diz sobre o vídeo (oEmbed na prévia, yt-dlp na análise e no download).</summary>

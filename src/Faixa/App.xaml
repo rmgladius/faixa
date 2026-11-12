@@ -161,6 +161,32 @@
             </Setter>
         </Style>
 
+        <!-- Linha clicável do Sobre (e-mail, GitHub, LinkedIn): ícone, rótulo, valor e seta -->
+        <Style x:Key="LinhaContato" TargetType="Button">
+            <Setter Property="Foreground" Value="{StaticResource Texto}" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Fundo" Background="Transparent" CornerRadius="10" Padding="8,7"
+                                BorderThickness="1" BorderBrush="Transparent">
+                            <ContentPresenter />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Fundo" Property="Background" Value="{StaticResource SuperficieHover}" />
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Fundo" Property="BorderBrush" Value="{StaticResource BordaForte}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <!-- Campo de texto sem moldura (a moldura fica no Border em volta) -->
         <Style x:Key="CampoLimpo" TargetType="TextBox">
             <Setter Property="Background" Value="Transparent" />

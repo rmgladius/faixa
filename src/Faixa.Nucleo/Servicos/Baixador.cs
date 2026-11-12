@@ -6,11 +6,13 @@ using System.Text.Json;
 
 namespace Faixa.Servicos;
 
-public enum Fase { Iniciando, Baixando, Convertendo, Finalizando }
+/// <summary>Etapas do download. "Procurando" só existe nas músicas do Spotify e do Deezer (busca no YouTube Music).</summary>
+public enum Fase { Procurando, Iniciando, Baixando, Convertendo, Finalizando }
 
 public sealed record Progresso(Fase Fase, double? Fracao = null);
 
-public enum TipoErro { Conexao, Indisponivel, Restrito, Bloqueio, Gravacao, Conversao, Desconhecido }
+/// <summary>Previa = só há um trecho de 30 s (SoundCloud Go+): não adianta tentar baixar.</summary>
+public enum TipoErro { Conexao, Indisponivel, Restrito, Bloqueio, Gravacao, Conversao, Desconhecido, Previa }
 
 public sealed class ErroDownload(TipoErro tipo, string mensagem, string detalhe) : Exception(mensagem)
 {
@@ -21,11 +23,11 @@ public sealed class ErroDownload(TipoErro tipo, string mensagem, string detalhe)
     public bool ValeAtualizar => Tipo is TipoErro.Desconhecido or TipoErro.Bloqueio;
 }
 
-/// <summary>O arquivo pronto e o formato do YouTube que realmente foi baixado (lido do próprio yt-dlp).</summary>
+/// <summary>O arquivo pronto e o formato que realmente foi baixado (lido do próprio yt-dlp).</summary>
 /// <param name="Dados">Artista, faixa e álbum oficiais, se o YouTube informar; senão, título e canal.</param>
 public sealed record Resultado(string Arquivo, string? FonteCodec, double? FonteKbps, DadosMusica? Dados = null);
 
-/// <summary>Roda o yt-dlp para um vídeo e devolve o arquivo pronto.</summary>
+/// <summary>Roda o yt-dlp para um vídeo (ou faixa do SoundCloud) e devolve o arquivo pronto.</summary>
 public static class Baixador
 {
     // Marcador das linhas que nós mesmos pedimos ao yt-dlp (via --progress-template e --print),
@@ -38,7 +40,7 @@ public static class Baixador
         "ThumbnailsConvertor+FFmpeg_o:-c:v mjpeg -qmin 1 -q:v 2 " +
         "-vf crop=\"'if(gt(ih,iw),iw,ih)':'if(gt(iw,ih),ih,iw)'\"";
 
-    public static IReadOnlyList<string> Argumentos(string id, OpcaoFormato opcao, InfoAudio? audio)
+    public static IReadOnlyList<string> Argumentos(string url, OpcaoFormato opcao, InfoAudio? audio)
     {
         // Pede o formato exato que a análise mostrou; se ele sumir entre a análise e o download,
         // cai no melhor áudio, e a linha "fonte" abaixo conta o que veio de fato.
@@ -64,8 +66,8 @@ public static class Baixador
             "--embed-thumbnail", "--convert-thumbnails", "jpg",
             "--ppa", CorteQuadrado,
 
-            // Tudo fica na pasta interna do Faixa; quem leva o arquivo ao destino é o próprio Faixa
-            // (ver Entregar). Assim o Acesso controlado a pastas só olharia para o Faixa.exe.
+            // Tudo fica na pasta interna do app; quem leva o arquivo ao destino é o próprio app
+            // (ver Entregar). Assim o Acesso controlado a pastas só olharia para o .exe dele.
             "--no-mtime", "--windows-filenames",
             "-P", Componentes.PastaProntos,
             "-P", "temp:" + Componentes.PastaTemp,
@@ -75,20 +77,20 @@ public static class Baixador
             "--newline", "--progress", "--progress-delta", "0.25",
             "--progress-template", "download:" + Marca + "dl|%(progress._percent)s",
             "--progress-template", "postprocess:" + Marca + "pp|%(progress.postprocessor)s|%(progress.status)s",
-            "--print", "before_dl:" + Marca + "info|%(.{format_id,acodec,abr,tbr,track,artist,artists,album,release_year,title,channel,uploader})j",
+            "--print", "before_dl:" + Marca + "info|%(.{format_id,acodec,abr,tbr,track,artist,artists,album,release_year,title,channel,uploader,extractor_key})j",
             "--print", "after_move:" + Marca + "arquivo|%(filepath)s",
 
-            "--", YouTube.UrlDoVideo(id),
+            "--", url,
         ]);
         return args;
     }
 
-    /// <summary>Baixa e converte. Devolve o arquivo pronto, ainda na pasta interna do Faixa.</summary>
-    public static async Task<Resultado> BaixarAsync(string id, OpcaoFormato opcao, InfoAudio? audio,
+    /// <summary>Baixa e converte. Devolve o arquivo pronto, ainda na pasta interna do app.</summary>
+    public static async Task<Resultado> BaixarAsync(string url, OpcaoFormato opcao, InfoAudio? audio,
         IProgress<Progresso> progresso, CancellationToken ct)
     {
         Directory.CreateDirectory(Componentes.PastaProntos);
-        var psi = Componentes.ProcessoYtDlp(Argumentos(id, opcao, audio));
+        var psi = Componentes.ProcessoYtDlp(Argumentos(url, opcao, audio));
 
         string? arquivo = null;
         string? fonteCodec = null;
@@ -236,8 +238,17 @@ public static class Baixador
         bool Tem(params string[] trechos) =>
             trechos.Any(t => erro.Contains(t, StringComparison.OrdinalIgnoreCase));
 
+        var soundCloud = erro.Contains("[soundcloud", StringComparison.OrdinalIgnoreCase);
+        if (soundCloud && Tem("HTTP Error 429", "too many requests"))
+            return new(TipoErro.Bloqueio, "O SoundCloud limitou os pedidos. Tente daqui a alguns minutos.", detalhe);
         if (Tem("not a bot", "HTTP Error 429", "too many requests"))
             return new(TipoErro.Bloqueio, "O YouTube pediu verificação anti-robô. Tente daqui a alguns minutos.", detalhe);
+        if (Tem("DRM protected"))
+            return new(TipoErro.Restrito, "Esse áudio é protegido contra cópia (DRM) e não dá para baixar.", detalhe);
+        if (soundCloud && Tem("HTTP Error 404", "HTTP Error 403"))
+            return new(TipoErro.Indisponivel, "Essa faixa não existe ou é privada.", detalhe);
+        if (soundCloud && Tem("geo restrict", "not available from your location", "not available in your country"))
+            return new(TipoErro.Indisponivel, "O SoundCloud bloqueia essa faixa no seu país.", detalhe);
         if (Tem("confirm your age", "age-restricted", "inappropriate for some users"))
             return new(TipoErro.Restrito, "Vídeo com restrição de idade. O YouTube só libera com login.", detalhe);
         if (Tem("members-only", "join this channel", "available to this channel's members"))

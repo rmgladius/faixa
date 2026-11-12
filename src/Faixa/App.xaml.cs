@@ -12,7 +12,16 @@ public partial class App : Application
         base.OnStartup(e);
         DispatcherUnhandledException += AoFalhar;
 
-        // Numa atualização com o Faixa aberto, o .exe antigo é renomeado para .old; apaga a sobra.
+        // --capturas <pasta>: cada estado da tela em PNG. --demo <pasta>: quadros da animação do README.
+        var modo = e.Args.Length >= 2 ? e.Args[0] : null;
+        var pasta = modo is "--capturas" or "--demo" ? e.Args[1] : null;
+
+        // Quem vem da versão 1.1 (Faixa) traz componentes e configuração para a pasta nova.
+        // As capturas não mexem nisso: rodam ao lado do app instalado.
+        if (pasta is null)
+            Componentes.TrazerPastaAntiga();
+
+        // Numa atualização com o app aberto, o .exe antigo é renomeado para .old; apaga a sobra.
         try
         {
             if (Environment.ProcessPath is { } exe && File.Exists(exe + ".old"))
@@ -23,9 +32,6 @@ public partial class App : Application
             // Ainda em uso; fica para a próxima.
         }
 
-        // --capturas <pasta>: cada estado da tela em PNG. --demo <pasta>: quadros da animação do README.
-        var modo = e.Args.Length >= 2 ? e.Args[0] : null;
-        var pasta = modo is "--capturas" or "--demo" ? e.Args[1] : null;
         var janela = new MainWindow(pasta, demo: modo == "--demo");
         MainWindow = janela;
         janela.Show();
@@ -44,8 +50,8 @@ public partial class App : Application
             // sem log, segue
         }
 
-        MessageBox.Show("Algo deu errado, mas o Faixa continua aberto.\n\n" + e.Exception.Message,
-            "Faixa", MessageBoxButton.OK, MessageBoxImage.Warning);
+        MessageBox.Show("Algo deu errado, mas o programa continua aberto.\n\n" + e.Exception.Message,
+            Programa.Nome, MessageBoxButton.OK, MessageBoxImage.Warning);
         e.Handled = true;
     }
 }

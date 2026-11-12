@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
-# Publica uma versão do Faixa no GitHub Releases (roda no WSL, usa o .NET do Windows).
+# Publica uma versão do RD Track Downloader no GitHub Releases (roda no WSL, usa o .NET do Windows).
 #
 #   1. Suba a <Version> em Directory.Build.props e faça o commit.
 #   2. ./publicar.sh "- Novidade 1
 #      - Novidade 2"
 #
-# Gera distribuir/Faixa.exe (autossuficiente), Faixa.exe.sha256 e Faixa.zip (exe + LEIA-ME)
-# e cria a release vX.Y.Z. O botão de atualização do Faixa procura exatamente o asset Faixa.exe.
+# Gera distribuir/RDTrackDownloader.exe (autossuficiente), o .sha256 dele e RDTrackDownloader.zip
+# (exe + LEIA-ME) e cria a release vX.Y.Z. O botão de atualização procura o asset RDTrackDownloader.exe;
+# vai junto uma cópia como Faixa.exe, o nome que a versão 1.1 procura, para ela também se atualizar.
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -29,17 +30,19 @@ echo "== Executável autossuficiente $versao"
 rm -rf distribuir
 cmd.exe /c "cd /d $win && dotnet publish src\\Faixa\\Faixa.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:DebugType=none -o distribuir -nologo -v q"
 
-sha256sum distribuir/Faixa.exe | cut -d' ' -f1 > distribuir/Faixa.exe.sha256
+exe=RDTrackDownloader
+sha256sum distribuir/$exe.exe | cut -d' ' -f1 > distribuir/$exe.exe.sha256
+cp distribuir/$exe.exe distribuir/Faixa.exe
 python3 -I - <<'PY'
 import zipfile
 leia = open('distribuicao/LEIA-ME.txt', encoding='utf-8').read().replace('\n', '\r\n')
-with zipfile.ZipFile('distribuir/Faixa.zip', 'w', zipfile.ZIP_DEFLATED) as z:
-    z.write('distribuir/Faixa.exe', 'Faixa.exe')
+with zipfile.ZipFile('distribuir/RDTrackDownloader.zip', 'w', zipfile.ZIP_DEFLATED) as z:
+    z.write('distribuir/RDTrackDownloader.exe', 'RDTrackDownloader.exe')
     z.writestr('LEIA-ME.txt', leia.encode('utf-8-sig'))
 PY
 
 echo "== Release $tag"
 git push origin main
-gh release create "$tag" distribuir/Faixa.exe distribuir/Faixa.exe.sha256 distribuir/Faixa.zip \
-  --repo "$repo" --title "Faixa $versao" --notes "$notas"
+gh release create "$tag" distribuir/$exe.exe distribuir/$exe.exe.sha256 distribuir/$exe.zip distribuir/Faixa.exe \
+  --repo "$repo" --title "RD Track Downloader $versao" --notes "$notas"
 echo "Pronto: https://github.com/$repo/releases/tag/$tag"

@@ -2,12 +2,23 @@ namespace Faixa.Testes;
 
 public class AtualizadorTestes
 {
+    // A partir da 1.2 a release leva o .exe com o nome novo e uma cópia como Faixa.exe para quem está na 1.1.
     private const string Release = """
-        {"tag_name": "v1.2.0", "name": "Faixa 1.2", "body": "- Playlists\n- Nomes limpos\n",
+        {"tag_name": "v1.2.0", "name": "RD Track Downloader 1.2", "body": "- Playlists\n- Nomes limpos\n",
          "assets": [
-          {"name": "Faixa.zip", "browser_download_url": "https://github.com/x/faixa/releases/download/v1.2.0/Faixa.zip", "size": 56000000},
           {"name": "Faixa.exe", "browser_download_url": "https://github.com/x/faixa/releases/download/v1.2.0/Faixa.exe", "size": 61871595,
+           "digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111"},
+          {"name": "RDTrackDownloader.zip", "browser_download_url": "https://github.com/x/faixa/releases/download/v1.2.0/RDTrackDownloader.zip", "size": 56000000},
+          {"name": "RDTrackDownloader.exe", "browser_download_url": "https://github.com/x/faixa/releases/download/v1.2.0/RDTrackDownloader.exe", "size": 61871595,
            "digest": "sha256:ABCDEF0123456789abcdef0123456789abcdef0123456789abcdef0123456789"}
+        ]}
+        """;
+
+    // Release da 1.1, só com o nome antigo.
+    private const string ReleaseAntiga = """
+        {"tag_name": "v1.1.0", "body": "",
+         "assets": [
+          {"name": "Faixa.exe", "browser_download_url": "https://github.com/x/faixa/releases/download/v1.1.0/Faixa.exe", "size": 61000000}
         ]}
         """;
 
@@ -32,10 +43,20 @@ public class AtualizadorTestes
 
         Assert.Equal(new Version(1, 2, 0), nova.Versao);
         Assert.Equal("1.2", nova.Texto);
-        Assert.EndsWith("/Faixa.exe", nova.Download);
+        Assert.EndsWith("/RDTrackDownloader.exe", nova.Download);
         Assert.Equal(61871595, nova.Tamanho);
         Assert.Equal("abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789", nova.Sha256);
         Assert.Contains("Playlists", nova.Notas);
+    }
+
+    [Fact]
+    public void Release_so_com_o_nome_antigo_ainda_vale()
+    {
+        var nova = Atualizador.Interpretar(ReleaseAntiga)!;
+
+        Assert.Equal(new Version(1, 1, 0), nova.Versao);
+        Assert.EndsWith("/Faixa.exe", nova.Download);
+        Assert.Null(nova.Sha256);
     }
 
     [Fact]

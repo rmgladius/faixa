@@ -2,7 +2,8 @@ namespace Faixa.Servicos;
 
 /// <summary>
 /// Grava artista, música, álbum, ano e número da faixa dentro do arquivo. O yt-dlp já deixa a capa
-/// e os dados do vídeo; aqui eles são trocados pelos nomes limpos (ou editados na tela).
+/// e os dados do vídeo; aqui eles são trocados pelos nomes limpos (ou editados na tela) e, nas músicas
+/// do Spotify e do Deezer, pela capa oficial do álbum.
 /// </summary>
 public static class Etiquetas
 {
@@ -13,9 +14,21 @@ public static class Etiquetas
         TagLib.Id3v2.Tag.ForceDefaultVersion = true;
     }
 
-    public static void Gravar(string arquivo, NomeMusica nome, int? faixa = null)
+    public static void Gravar(string arquivo, NomeMusica nome, int? faixa = null, byte[]? capa = null)
     {
         using var f = TagLib.File.Create(arquivo);
+        if (capa is { Length: > 0 })
+        {
+            f.Tag.Pictures =
+            [
+                new TagLib.Picture(new TagLib.ByteVector(capa))
+                {
+                    Type = TagLib.PictureType.FrontCover,
+                    MimeType = capa is [0x89, 0x50, ..] ? "image/png" : "image/jpeg",
+                    Description = "",
+                },
+            ];
+        }
         f.Tag.Title = nome.Musica;
         f.Tag.Performers = string.IsNullOrWhiteSpace(nome.Artista) ? [] : [nome.Artista];
         if (nome.Album is { Length: > 0 } album)
@@ -25,6 +38,13 @@ public static class Etiquetas
         if (faixa is int n and > 0)
             f.Tag.Track = (uint)n;
         f.Save();
+    }
+
+    /// <summary>Tamanho da capa gravada, em bytes (0 sem capa). Usado nos testes.</summary>
+    public static int TamanhoDaCapa(string arquivo)
+    {
+        using var f = TagLib.File.Create(arquivo);
+        return f.Tag.Pictures.FirstOrDefault()?.Data.Count ?? 0;
     }
 
     /// <summary>Lê de volta (usado nos testes e para conferir o resultado).</summary>

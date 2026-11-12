@@ -18,6 +18,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Respostas reais (reduzidas) do YouTube Music, Spotify, Deezer e SoundCloud. -->
+    <None Include="Exemplos\**" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Using Include="Xunit" />
     <Using Include="Faixa.Servicos" />
   </ItemGroup>
